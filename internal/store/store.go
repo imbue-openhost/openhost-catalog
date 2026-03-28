@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,18 +78,37 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("create db parent directory: %w", err)
 	}
 
+	fileHandle, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("open db file for read/write: %w", err)
+	}
+	_ = fileHandle.Close()
+
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite db: %w", err)
 	}
 
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+	if _, err := db.Exec("SELECT 1"); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("enable WAL mode: %w", err)
+		return nil, fmt.Errorf("open sqlite connection: %w", err)
 	}
+
 	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("enable foreign keys: %w", err)
+	}
+	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("set sqlite busy timeout: %w", err)
+	}
+
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		log.Printf("store: WAL unavailable, falling back to DELETE mode: %v", err)
+		if _, errDelete := db.Exec("PRAGMA journal_mode=DELETE"); errDelete != nil {
+			db.Close()
+			return nil, fmt.Errorf("configure journal mode failed (wal: %v, delete fallback: %w)", err, errDelete)
+		}
 	}
 
 	return &Store{db: db}, nil

@@ -10,13 +10,9 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/openhost-catalog ./cmd/openhost-catalog
 
 FROM alpine:3.21
-
-RUN adduser -D -u 10001 appuser
 WORKDIR /app
 
 COPY --from=builder /out/openhost-catalog /usr/local/bin/openhost-catalog
-
-USER appuser
 EXPOSE 8080
 
 ENTRYPOINT ["/usr/local/bin/openhost-catalog"]
