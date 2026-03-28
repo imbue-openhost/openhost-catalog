@@ -1,0 +1,618 @@
+package store
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	_ "modernc.org/sqlite"
+)
+
+type Store struct {
+	db *sql.DB
+}
+
+type Source struct {
+	ID           string
+	Name         string
+	URL          string
+	Enabled      bool
+	ETag         string
+	LastModified string
+	LastSyncAt   string
+	LastError    string
+	CreatedAt    string
+	UpdatedAt    string
+}
+
+type CatalogApp struct {
+	SourceID               string
+	SourceName             string
+	AppID                  string
+	Title                  string
+	Description            string
+	RepoURL                string
+	RepoRef                string
+	DefaultAppName         string
+	IconURL                string
+	Tags                   []string
+	Categories             []string
+	WebsiteURL             string
+	DocsURL                string
+	MinimumOpenHostVersion string
+	Verified               bool
+	UpdatedAt              string
+}
+
+type Publish struct {
+	ID               string
+	SourceID         string
+	AppID            string
+	Title            string
+	RequestedAppName string
+	RepoURL          string
+	RepoRef          string
+	RouterAppName    string
+	Status           string
+	ErrorMessage     string
+	ManualInstallURL string
+	CreatedAt        string
+	UpdatedAt        string
+}
+
+type AppListFilter struct {
+	Query    string
+	SourceID string
+	Tag      string
+}
+
+func Open(path string) (*Store, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil && !errors.Is(err, os.ErrExist) {
+		return nil, fmt.Errorf("create db parent directory: %w", err)
+	}
+
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		return nil, fmt.Errorf("open sqlite db: %w", err)
+	}
+
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("enable WAL mode: %w", err)
+	}
+	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("enable foreign keys: %w", err)
+	}
+
+	return &Store{db: db}, nil
+}
+
+func (s *Store) Close() error {
+	return s.db.Close()
+}
+
+func (s *Store) Init(ctx context.Context) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS sources (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			url TEXT NOT NULL UNIQUE,
+			enabled INTEGER NOT NULL DEFAULT 1,
+			etag TEXT NOT NULL DEFAULT '',
+			last_modified TEXT NOT NULL DEFAULT '',
+			last_sync_at TEXT NOT NULL DEFAULT '',
+			last_error TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS catalog_apps (
+			source_id TEXT NOT NULL,
+			app_id TEXT NOT NULL,
+			title TEXT NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			repo_url TEXT NOT NULL,
+			repo_ref TEXT NOT NULL DEFAULT '',
+			default_app_name TEXT NOT NULL DEFAULT '',
+			icon_url TEXT NOT NULL DEFAULT '',
+			tags_json TEXT NOT NULL DEFAULT '[]',
+			categories_json TEXT NOT NULL DEFAULT '[]',
+			website_url TEXT NOT NULL DEFAULT '',
+			docs_url TEXT NOT NULL DEFAULT '',
+			minimum_openhost_version TEXT NOT NULL DEFAULT '',
+			verified INTEGER NOT NULL DEFAULT 0,
+			updated_at TEXT NOT NULL,
+			PRIMARY KEY (source_id, app_id),
+			FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE IF NOT EXISTS publishes (
+			id TEXT PRIMARY KEY,
+			source_id TEXT NOT NULL,
+			app_id TEXT NOT NULL,
+			title TEXT NOT NULL,
+			requested_app_name TEXT NOT NULL,
+			repo_url TEXT NOT NULL,
+			repo_ref TEXT NOT NULL DEFAULT '',
+			router_app_name TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL,
+			error_message TEXT NOT NULL DEFAULT '',
+			manual_install_url TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_catalog_apps_title ON catalog_apps(title)`,
+		`CREATE INDEX IF NOT EXISTS idx_publishes_created_at ON publishes(created_at DESC)`,
+	}
+
+	for _, stmt := range statements {
+		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("initialize schema: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *Store) CreateSource(ctx context.Context, src Source) error {
+	now := nowString()
+	_, err := s.db.ExecContext(
+		ctx,
+		`INSERT INTO sources
+		(id, name, url, enabled, etag, last_modified, last_sync_at, last_error, created_at, updated_at)
+		VALUES (?, ?, ?, ?, '', '', '', '', ?, ?)`,
+		src.ID,
+		src.Name,
+		src.URL,
+		boolToInt(src.Enabled),
+		now,
+		now,
+	)
+	if err != nil {
+		return fmt.Errorf("insert source: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) GetSource(ctx context.Context, id string) (Source, error) {
+	row := s.db.QueryRowContext(
+		ctx,
+		`SELECT id, name, url, enabled, etag, last_modified, last_sync_at, last_error, created_at, updated_at
+		 FROM sources WHERE id = ?`,
+		id,
+	)
+	return scanSource(row)
+}
+
+func (s *Store) ListSources(ctx context.Context) ([]Source, error) {
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT id, name, url, enabled, etag, last_modified, last_sync_at, last_error, created_at, updated_at
+		 FROM sources ORDER BY lower(name), id`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query sources: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]Source, 0)
+	for rows.Next() {
+		s, err := scanSource(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan source row: %w", err)
+		}
+		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate sources: %w", err)
+	}
+	return out, nil
+}
+
+func (s *Store) SetSourceEnabled(ctx context.Context, id string, enabled bool) error {
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE sources SET enabled = ?, updated_at = ? WHERE id = ?`,
+		boolToInt(enabled),
+		nowString(),
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("update source enabled: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) DeleteSource(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM sources WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("delete source: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) ReplaceCatalogAppsForSource(ctx context.Context, sourceID string, apps []CatalogApp) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM catalog_apps WHERE source_id = ?`, sourceID); err != nil {
+		return fmt.Errorf("clear source catalog apps: %w", err)
+	}
+
+	insertStmt := `INSERT INTO catalog_apps
+	(source_id, app_id, title, description, repo_url, repo_ref, default_app_name, icon_url,
+	 tags_json, categories_json, website_url, docs_url, minimum_openhost_version, verified, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	now := nowString()
+	for _, app := range apps {
+		tagsJSON, err := json.Marshal(app.Tags)
+		if err != nil {
+			return fmt.Errorf("marshal tags for %s/%s: %w", app.SourceID, app.AppID, err)
+		}
+		categoriesJSON, err := json.Marshal(app.Categories)
+		if err != nil {
+			return fmt.Errorf("marshal categories for %s/%s: %w", app.SourceID, app.AppID, err)
+		}
+
+		if _, err := tx.ExecContext(
+			ctx,
+			insertStmt,
+			sourceID,
+			app.AppID,
+			app.Title,
+			app.Description,
+			app.RepoURL,
+			app.RepoRef,
+			app.DefaultAppName,
+			app.IconURL,
+			string(tagsJSON),
+			string(categoriesJSON),
+			app.WebsiteURL,
+			app.DocsURL,
+			app.MinimumOpenHostVersion,
+			boolToInt(app.Verified),
+			now,
+		); err != nil {
+			return fmt.Errorf("insert catalog app %s/%s: %w", sourceID, app.AppID, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit catalog apps transaction: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) UpdateSourceAfterSync(
+	ctx context.Context,
+	sourceID string,
+	name string,
+	etag string,
+	lastModified string,
+	lastError string,
+) error {
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE sources
+		 SET name = ?, etag = ?, last_modified = ?, last_sync_at = ?, last_error = ?, updated_at = ?
+		 WHERE id = ?`,
+		name,
+		etag,
+		lastModified,
+		nowString(),
+		lastError,
+		nowString(),
+		sourceID,
+	)
+	if err != nil {
+		return fmt.Errorf("update source sync metadata: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) UpdateSourceError(ctx context.Context, sourceID string, lastError string) error {
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE sources SET last_error = ?, last_sync_at = ?, updated_at = ? WHERE id = ?`,
+		lastError,
+		nowString(),
+		nowString(),
+		sourceID,
+	)
+	if err != nil {
+		return fmt.Errorf("update source error: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]CatalogApp, error) {
+	query := `SELECT
+		ca.source_id,
+		s.name,
+		ca.app_id,
+		ca.title,
+		ca.description,
+		ca.repo_url,
+		ca.repo_ref,
+		ca.default_app_name,
+		ca.icon_url,
+		ca.tags_json,
+		ca.categories_json,
+		ca.website_url,
+		ca.docs_url,
+		ca.minimum_openhost_version,
+		ca.verified,
+		ca.updated_at
+	FROM catalog_apps ca
+	JOIN sources s ON s.id = ca.source_id
+	WHERE s.enabled = 1`
+
+	args := make([]any, 0)
+
+	if filter.SourceID != "" {
+		query += ` AND ca.source_id = ?`
+		args = append(args, filter.SourceID)
+	}
+	if filter.Query != "" {
+		q := strings.ToLower(filter.Query)
+		query += ` AND (
+			lower(ca.app_id) LIKE ? OR
+			lower(ca.title) LIKE ? OR
+			lower(ca.description) LIKE ?
+		)`
+		like := "%" + q + "%"
+		args = append(args, like, like, like)
+	}
+	if filter.Tag != "" {
+		query += ` AND ca.tags_json LIKE ?`
+		args = append(args, "%\""+filter.Tag+"\"%")
+	}
+
+	query += ` ORDER BY ca.verified DESC, lower(ca.title), ca.app_id`
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query catalog apps: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]CatalogApp, 0)
+	for rows.Next() {
+		var app CatalogApp
+		var tagsJSON, categoriesJSON string
+		var verified int
+		if err := rows.Scan(
+			&app.SourceID,
+			&app.SourceName,
+			&app.AppID,
+			&app.Title,
+			&app.Description,
+			&app.RepoURL,
+			&app.RepoRef,
+			&app.DefaultAppName,
+			&app.IconURL,
+			&tagsJSON,
+			&categoriesJSON,
+			&app.WebsiteURL,
+			&app.DocsURL,
+			&app.MinimumOpenHostVersion,
+			&verified,
+			&app.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan catalog app row: %w", err)
+		}
+		app.Verified = verified == 1
+		app.Tags = decodeJSONList(tagsJSON)
+		app.Categories = decodeJSONList(categoriesJSON)
+		out = append(out, app)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate catalog apps: %w", err)
+	}
+
+	return out, nil
+}
+
+func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (CatalogApp, error) {
+	row := s.db.QueryRowContext(
+		ctx,
+		`SELECT
+			ca.source_id,
+			s.name,
+			ca.app_id,
+			ca.title,
+			ca.description,
+			ca.repo_url,
+			ca.repo_ref,
+			ca.default_app_name,
+			ca.icon_url,
+			ca.tags_json,
+			ca.categories_json,
+			ca.website_url,
+			ca.docs_url,
+			ca.minimum_openhost_version,
+			ca.verified,
+			ca.updated_at
+		 FROM catalog_apps ca
+		 JOIN sources s ON s.id = ca.source_id
+		 WHERE ca.source_id = ? AND ca.app_id = ?`,
+		sourceID,
+		appID,
+	)
+
+	var app CatalogApp
+	var tagsJSON, categoriesJSON string
+	var verified int
+	if err := row.Scan(
+		&app.SourceID,
+		&app.SourceName,
+		&app.AppID,
+		&app.Title,
+		&app.Description,
+		&app.RepoURL,
+		&app.RepoRef,
+		&app.DefaultAppName,
+		&app.IconURL,
+		&tagsJSON,
+		&categoriesJSON,
+		&app.WebsiteURL,
+		&app.DocsURL,
+		&app.MinimumOpenHostVersion,
+		&verified,
+		&app.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return CatalogApp{}, sql.ErrNoRows
+		}
+		return CatalogApp{}, fmt.Errorf("scan catalog app: %w", err)
+	}
+	app.Verified = verified == 1
+	app.Tags = decodeJSONList(tagsJSON)
+	app.Categories = decodeJSONList(categoriesJSON)
+	return app, nil
+}
+
+func (s *Store) CreatePublish(ctx context.Context, publish Publish) error {
+	now := nowString()
+	if publish.CreatedAt == "" {
+		publish.CreatedAt = now
+	}
+	if publish.UpdatedAt == "" {
+		publish.UpdatedAt = now
+	}
+
+	_, err := s.db.ExecContext(
+		ctx,
+		`INSERT INTO publishes
+		(id, source_id, app_id, title, requested_app_name, repo_url, repo_ref, router_app_name, status,
+		 error_message, manual_install_url, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		publish.ID,
+		publish.SourceID,
+		publish.AppID,
+		publish.Title,
+		publish.RequestedAppName,
+		publish.RepoURL,
+		publish.RepoRef,
+		publish.RouterAppName,
+		publish.Status,
+		publish.ErrorMessage,
+		publish.ManualInstallURL,
+		publish.CreatedAt,
+		publish.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("insert publish: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) GetPublish(ctx context.Context, publishID string) (Publish, error) {
+	row := s.db.QueryRowContext(
+		ctx,
+		`SELECT
+			id, source_id, app_id, title, requested_app_name, repo_url, repo_ref, router_app_name, status,
+			error_message, manual_install_url, created_at, updated_at
+		 FROM publishes
+		 WHERE id = ?`,
+		publishID,
+	)
+
+	var p Publish
+	if err := row.Scan(
+		&p.ID,
+		&p.SourceID,
+		&p.AppID,
+		&p.Title,
+		&p.RequestedAppName,
+		&p.RepoURL,
+		&p.RepoRef,
+		&p.RouterAppName,
+		&p.Status,
+		&p.ErrorMessage,
+		&p.ManualInstallURL,
+		&p.CreatedAt,
+		&p.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Publish{}, sql.ErrNoRows
+		}
+		return Publish{}, fmt.Errorf("scan publish: %w", err)
+	}
+
+	return p, nil
+}
+
+func (s *Store) UpdatePublish(ctx context.Context, publish Publish) error {
+	publish.UpdatedAt = nowString()
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE publishes
+		 SET router_app_name = ?, status = ?, error_message = ?, manual_install_url = ?, updated_at = ?
+		 WHERE id = ?`,
+		publish.RouterAppName,
+		publish.Status,
+		publish.ErrorMessage,
+		publish.ManualInstallURL,
+		publish.UpdatedAt,
+		publish.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("update publish: %w", err)
+	}
+	return nil
+}
+
+func scanSource(row interface {
+	Scan(dest ...any) error
+}) (Source, error) {
+	var src Source
+	var enabled int
+	if err := row.Scan(
+		&src.ID,
+		&src.Name,
+		&src.URL,
+		&enabled,
+		&src.ETag,
+		&src.LastModified,
+		&src.LastSyncAt,
+		&src.LastError,
+		&src.CreatedAt,
+		&src.UpdatedAt,
+	); err != nil {
+		return Source{}, err
+	}
+	src.Enabled = enabled == 1
+	return src, nil
+}
+
+func decodeJSONList(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var out []string
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return nil
+	}
+	return out
+}
+
+func nowString() string {
+	return time.Now().UTC().Format(time.RFC3339)
+}
+
+func boolToInt(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
+}

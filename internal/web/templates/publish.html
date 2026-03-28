@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Publish {{.Publish.Title}} · OpenHost Catalog</title>
+  <link rel="stylesheet" href="{{withBase .BasePath "/static/style.css"}}">
+</head>
+<body>
+  <header class="topbar">
+    <h1><a href="{{withBase .BasePath "/"}}">OpenHost Catalog</a></h1>
+    <nav>
+      <a href="{{withBase .BasePath "/"}}">Catalog</a>
+      <a href="{{withBase .BasePath "/sources"}}">Sources</a>
+    </nav>
+  </header>
+
+  <main id="publish-page"
+        data-status-url="{{withBase .BasePath (printf "/publishes/%s/status.json" .Publish.ID)}}"
+        data-logs-url="{{withBase .BasePath (printf "/publishes/%s/logs.txt" .Publish.ID)}}"
+        data-terminal="{{if .Terminal}}1{{else}}0{{end}}">
+    <section class="panel">
+      <p><a href="{{withBase .BasePath "/"}}">&larr; Back to catalog</a></p>
+      <h2>Publish: {{.Publish.Title}}</h2>
+
+      <table>
+        <tbody>
+          <tr><th>Publish ID</th><td class="mono">{{.Publish.ID}}</td></tr>
+          <tr><th>App name</th><td class="mono" id="router-app-name">{{.Publish.RouterAppName}}</td></tr>
+          <tr><th>Status</th><td><span id="publish-status" class="status-pill {{statusClass .Publish.Status}}">{{.Publish.Status}}</span></td></tr>
+          <tr><th>Repository</th><td class="mono wrap">{{.Publish.RepoURL}}{{if .Publish.RepoRef}}@{{.Publish.RepoRef}}{{end}}</td></tr>
+          <tr><th>Requested at</th><td>{{.Publish.CreatedAt}}</td></tr>
+        </tbody>
+      </table>
+
+      <p id="publish-error" class="error {{if not .Publish.ErrorMessage}}hidden{{end}}">{{.Publish.ErrorMessage}}</p>
+
+      <div id="manual-install" class="notice {{if ne .Publish.Status "redirect_required"}}hidden{{end}}">
+        <p>One-click deploy is not configured yet for this app instance.</p>
+        {{if .Publish.ManualInstallURL}}
+          <p><a id="manual-install-link" href="{{.Publish.ManualInstallURL}}">Open OpenHost installer</a></p>
+        {{end}}
+      </div>
+
+      <div class="actions" id="router-links">
+        {{if .RouterAppURL}}
+          <a id="router-app-url" class="button-link" href="{{.RouterAppURL}}" target="_blank" rel="noopener">Open app</a>
+        {{else}}
+          <a id="router-app-url" class="button-link hidden" href="#" target="_blank" rel="noopener">Open app</a>
+        {{end}}
+
+        {{if .RouterPage}}
+          <a id="router-page-url" class="button-link" href="{{.RouterPage}}" target="_blank" rel="noopener">Open OpenHost app page</a>
+        {{else}}
+          <a id="router-page-url" class="button-link hidden" href="#" target="_blank" rel="noopener">Open OpenHost app page</a>
+        {{end}}
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>Logs</h3>
+      <pre id="publish-logs" class="logs">Waiting for logs...</pre>
+    </section>
+  </main>
+
+  <script src="{{withBase .BasePath "/static/publish.js"}}"></script>
+</body>
+</html>
