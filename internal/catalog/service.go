@@ -41,7 +41,6 @@ type sourceFeedApp struct {
 	WebsiteURL             string   `json:"website_url"`
 	DocsURL                string   `json:"docs_url"`
 	MinimumOpenHostVersion string   `json:"minimum_openhost_version"`
-	Verified               bool     `json:"verified"`
 }
 
 func NewService(st *store.Store, client *http.Client) *Service {
@@ -190,7 +189,6 @@ func normalizeFeedApp(sourceID string, in sourceFeedApp) (store.CatalogApp, bool
 		WebsiteURL:             strings.TrimSpace(in.WebsiteURL),
 		DocsURL:                strings.TrimSpace(in.DocsURL),
 		MinimumOpenHostVersion: strings.TrimSpace(in.MinimumOpenHostVersion),
-		Verified:               in.Verified,
 	}
 
 	return out, true

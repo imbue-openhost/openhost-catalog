@@ -47,7 +47,6 @@ type CatalogApp struct {
 	WebsiteURL             string
 	DocsURL                string
 	MinimumOpenHostVersion string
-	Verified               bool
 	UpdatedAt              string
 }
 
@@ -146,7 +145,6 @@ func (s *Store) Init(ctx context.Context) error {
 			website_url TEXT NOT NULL DEFAULT '',
 			docs_url TEXT NOT NULL DEFAULT '',
 			minimum_openhost_version TEXT NOT NULL DEFAULT '',
-			verified INTEGER NOT NULL DEFAULT 0,
 			updated_at TEXT NOT NULL,
 			PRIMARY KEY (source_id, app_id),
 			FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
@@ -273,8 +271,8 @@ func (s *Store) ReplaceCatalogAppsForSource(ctx context.Context, sourceID string
 
 	insertStmt := `INSERT INTO catalog_apps
 	(source_id, app_id, title, description, repo_url, repo_ref, default_app_name, icon_url,
-	 tags_json, categories_json, website_url, docs_url, minimum_openhost_version, verified, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	 tags_json, categories_json, website_url, docs_url, minimum_openhost_version, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	now := nowString()
 	for _, app := range apps {
@@ -303,7 +301,6 @@ func (s *Store) ReplaceCatalogAppsForSource(ctx context.Context, sourceID string
 			app.WebsiteURL,
 			app.DocsURL,
 			app.MinimumOpenHostVersion,
-			boolToInt(app.Verified),
 			now,
 		); err != nil {
 			return fmt.Errorf("insert catalog app %s/%s: %w", sourceID, app.AppID, err)
@@ -374,7 +371,6 @@ func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]Ca
 		ca.website_url,
 		ca.docs_url,
 		ca.minimum_openhost_version,
-		ca.verified,
 		ca.updated_at
 	FROM catalog_apps ca
 	JOIN sources s ON s.id = ca.source_id
@@ -401,7 +397,7 @@ func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]Ca
 		args = append(args, "%\""+filter.Tag+"\"%")
 	}
 
-	query += ` ORDER BY ca.verified DESC, lower(ca.title), ca.app_id`
+	query += ` ORDER BY lower(ca.title), ca.app_id`
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -413,7 +409,6 @@ func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]Ca
 	for rows.Next() {
 		var app CatalogApp
 		var tagsJSON, categoriesJSON string
-		var verified int
 		if err := rows.Scan(
 			&app.SourceID,
 			&app.SourceName,
@@ -429,12 +424,10 @@ func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]Ca
 			&app.WebsiteURL,
 			&app.DocsURL,
 			&app.MinimumOpenHostVersion,
-			&verified,
 			&app.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan catalog app row: %w", err)
 		}
-		app.Verified = verified == 1
 		app.Tags = decodeJSONList(tagsJSON)
 		app.Categories = decodeJSONList(categoriesJSON)
 		out = append(out, app)
@@ -464,7 +457,6 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 			ca.website_url,
 			ca.docs_url,
 			ca.minimum_openhost_version,
-			ca.verified,
 			ca.updated_at
 		 FROM catalog_apps ca
 		 JOIN sources s ON s.id = ca.source_id
@@ -475,7 +467,6 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 
 	var app CatalogApp
 	var tagsJSON, categoriesJSON string
-	var verified int
 	if err := row.Scan(
 		&app.SourceID,
 		&app.SourceName,
@@ -491,7 +482,6 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 		&app.WebsiteURL,
 		&app.DocsURL,
 		&app.MinimumOpenHostVersion,
-		&verified,
 		&app.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -499,7 +489,6 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 		}
 		return CatalogApp{}, fmt.Errorf("scan catalog app: %w", err)
 	}
-	app.Verified = verified == 1
 	app.Tags = decodeJSONList(tagsJSON)
 	app.Categories = decodeJSONList(categoriesJSON)
 	return app, nil

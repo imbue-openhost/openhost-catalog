@@ -301,7 +301,6 @@ func (s *Server) handleSourceCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name := strings.TrimSpace(r.Form.Get("name"))
-	sourceID := strings.TrimSpace(r.Form.Get("id"))
 	sourceURL := strings.TrimSpace(r.Form.Get("url"))
 
 	if sourceURL == "" {
@@ -318,14 +317,14 @@ func (s *Server) handleSourceCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Auto-generate internal source ID from the name (or URL as fallback).
+	// The URL is the user-visible unique identifier; the ID is internal only.
+	sourceID := makeSlug(name)
 	if sourceID == "" {
-		sourceID = makeSlug(name)
-		if sourceID == "" {
-			sourceID = makeSlug(sourceURL)
-		}
+		sourceID = makeSlug(sourceURL)
 	}
-	if !appNamePattern.MatchString(sourceID) {
-		s.handleSourcesPage(w, r, "", "source id must be lowercase alphanumeric with optional interior hyphens")
+	if sourceID == "" {
+		s.handleSourcesPage(w, r, "", "could not derive a source id from the provided URL")
 		return
 	}
 

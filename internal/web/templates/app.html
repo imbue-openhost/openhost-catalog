@@ -21,7 +21,6 @@
     <tr><th>Catalog ID</th><td style="font-family: monospace;">{{.App.SourceID}}/{{.App.AppID}}</td></tr>
     <tr><th>Source</th><td>{{.App.SourceName}}</td></tr>
     <tr><th>Repository</th><td style="font-family: monospace; word-break: break-word;">{{.App.RepoURL}}{{if .App.RepoRef}}@{{.App.RepoRef}}{{end}}</td></tr>
-    <tr><th>Verified</th><td>{{if .App.Verified}}yes{{else}}no{{end}}</td></tr>
     <tr><th>Tags</th><td>{{if .App.Tags}}{{join .App.Tags ", "}}{{else}}-{{end}}</td></tr>
     <tr><th>Categories</th><td>{{if .App.Categories}}{{join .App.Categories ", "}}{{else}}-{{end}}</td></tr>
     <tr><th>Website</th><td>{{if .App.WebsiteURL}}<a href="{{.App.WebsiteURL}}" target="_blank" rel="noopener">{{.App.WebsiteURL}}</a>{{else}}-{{end}}</td></tr>

@@ -22,7 +22,6 @@
     <form method="post" action="{{withBase .BasePath "/sources"}}">
       <label>Source URL<br><input type="url" name="url" required placeholder="https://example.com/catalog.json" style="width: 400px; margin-bottom: 0.5em;"></label><br>
       <label>Name (optional)<br><input type="text" name="name" placeholder="Official Catalog" style="width: 250px; margin-bottom: 0.5em;"></label><br>
-      <label>Source ID (optional)<br><input type="text" name="id" placeholder="official" style="width: 150px; margin-bottom: 0.5em;"></label><br>
       <button type="submit" class="btn-primary">Add Source</button>
     </form>
   </div>
@@ -31,7 +30,6 @@
   {{if .Sources}}
   <table>
     <tr>
-      <th>ID</th>
       <th>Name</th>
       <th>URL</th>
       <th>Status</th>
@@ -40,7 +38,6 @@
     </tr>
     {{range .Sources}}
     <tr>
-      <td style="font-family: monospace;">{{.ID}}</td>
       <td>{{.Name}}</td>
       <td style="font-family: monospace; word-break: break-word;">{{.URL}}</td>
       <td>{{if .Enabled}}enabled{{else}}disabled{{end}}</td>
@@ -53,7 +50,7 @@
           <form method="post" action="{{withBase $.BasePath (printf "/sources/%s/toggle" .ID)}}" style="display: inline;">
             <button type="submit">{{if .Enabled}}Disable{{else}}Enable{{end}}</button>
           </form>
-          <form method="post" action="{{withBase $.BasePath (printf "/sources/%s/delete" .ID)}}" style="display: inline;" onsubmit="return confirm('Delete source {{.ID}} and all synced entries?');">
+          <form method="post" action="{{withBase $.BasePath (printf "/sources/%s/delete" .ID)}}" style="display: inline;" onsubmit="return confirm('Delete source {{.Name}} and all synced entries?');">
             <button type="submit" class="btn-danger">Delete</button>
           </form>
         </div>
@@ -61,7 +58,7 @@
     </tr>
     {{if .LastError}}
     <tr>
-      <td colspan="6" class="error">{{.LastError}}</td>
+      <td colspan="5" class="error">{{.LastError}}</td>
     </tr>
     {{end}}
     {{end}}
