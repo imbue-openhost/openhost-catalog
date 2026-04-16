@@ -1,4 +1,4 @@
-module github.com/imbue-ai/openhost-catalog
+module github.com/imbue-openhost/openhost-catalog
 
 go 1.24.0
 

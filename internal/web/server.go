@@ -21,10 +21,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/imbue-ai/openhost-catalog/internal/catalog"
-	"github.com/imbue-ai/openhost-catalog/internal/config"
-	"github.com/imbue-ai/openhost-catalog/internal/router"
-	"github.com/imbue-ai/openhost-catalog/internal/store"
+	"github.com/imbue-openhost/openhost-catalog/internal/catalog"
+	"github.com/imbue-openhost/openhost-catalog/internal/config"
+	"github.com/imbue-openhost/openhost-catalog/internal/router"
+	"github.com/imbue-openhost/openhost-catalog/internal/store"
 )
 
 //go:embed templates/*.html static/*

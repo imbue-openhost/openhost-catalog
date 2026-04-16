@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/imbue-ai/openhost-catalog/internal/store"
+	"github.com/imbue-openhost/openhost-catalog/internal/store"
 )
 
 var validIDPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
