@@ -46,19 +46,23 @@ type Server struct {
 }
 
 type indexPageData struct {
-	BasePath     string
-	Query        string
-	SourceFilter string
-	TagFilter    string
-	Sources      []store.Source
-	Apps         []store.CatalogApp
-	Error        string
+	BasePath      string
+	Query         string
+	SourceFilter  string
+	TagFilter     string
+	Sources       []store.Source
+	Apps          []store.CatalogApp
+	Error         string
+	CanDeploy     bool
+	RouterBaseURL string
 }
 
 type appPageData struct {
-	BasePath string
-	App      store.CatalogApp
-	Error    string
+	BasePath      string
+	App           store.CatalogApp
+	Error         string
+	CanDeploy     bool
+	RouterBaseURL string
 }
 
 type sourcesPageData struct {
@@ -183,12 +187,14 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, http.StatusOK, "index.html", indexPageData{
-		BasePath:     s.basePathForRequest(r),
-		Query:        query,
-		SourceFilter: sourceFilter,
-		TagFilter:    tagFilter,
-		Sources:      sources,
-		Apps:         apps,
+		BasePath:      s.basePathForRequest(r),
+		Query:         query,
+		SourceFilter:  sourceFilter,
+		TagFilter:     tagFilter,
+		Sources:       sources,
+		Apps:          apps,
+		CanDeploy:     s.canDeployDirectly(),
+		RouterBaseURL: s.routerBaseURL(r),
 	})
 }
 
@@ -326,8 +332,10 @@ func (s *Server) handleAppDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, http.StatusOK, "app.html", appPageData{
-		BasePath: s.basePathForRequest(r),
-		App:      app,
+		BasePath:      s.basePathForRequest(r),
+		App:           app,
+		CanDeploy:     s.canDeployDirectly(),
+		RouterBaseURL: s.routerBaseURL(r),
 	})
 }
 
@@ -585,6 +593,19 @@ func (s *Server) refreshPublishState(ctx context.Context, publish store.Publish)
 	}
 
 	return publish
+}
+
+// canDeployDirectly returns true if the catalog has (or can likely get) a
+// router token for one-click deploys. This is a fast, non-blocking check
+// used to decide whether to show "Publish" vs "Install" buttons.
+func (s *Server) canDeployDirectly() bool {
+	if strings.TrimSpace(s.cfg.RouterToken) != "" {
+		return true
+	}
+	s.tokenMu.Lock()
+	has := s.tokenVal != "" && time.Since(s.tokenTS) < 30*time.Second
+	s.tokenMu.Unlock()
+	return has
 }
 
 func (s *Server) resolveRouterToken(ctx context.Context) (string, error) {

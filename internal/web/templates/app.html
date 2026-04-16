@@ -28,9 +28,10 @@
     <tr><th>Docs</th><td>{{if .App.DocsURL}}<a href="{{.App.DocsURL}}" target="_blank" rel="noopener">{{.App.DocsURL}}</a>{{else}}-{{end}}</td></tr>
   </table>
 
-  <h2 style="margin-top: 2em;">Publish</h2>
+  <h2 style="margin-top: 2em;">Install</h2>
   {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
 
+  {{if .CanDeploy}}
   <form method="post" action="{{withBase .BasePath "/publish"}}">
     <input type="hidden" name="source_id" value="{{.App.SourceID}}">
     <input type="hidden" name="app_id" value="{{.App.AppID}}">
@@ -42,5 +43,9 @@
     <p style="color: #666; font-size: 0.9em;">Deployment config is read from the target repo's <code>openhost.toml</code>.</p>
     <button type="submit" class="btn-primary">Publish</button>
   </form>
+  {{else}}
+  <p style="color: #666; font-size: 0.9em;">Click below to install this app via the OpenHost dashboard.</p>
+  <a class="btn-primary btn" href="{{.RouterBaseURL}}/add_app?repo={{.App.RepoURL}}">Install on OpenHost</a>
+  {{end}}
 </body>
 </html>
