@@ -32,17 +32,21 @@ var assets embed.FS
 
 var appNamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
+const autoSyncInterval = 5 * time.Minute
+
 type Server struct {
-	cfg      config.Config
-	store    *store.Store
-	catalog  *catalog.Service
-	router   *router.Client
-	http     *http.Client
-	tmpl     *template.Template
-	static   http.Handler
-	tokenMu  sync.Mutex
-	tokenVal string
-	tokenTS  time.Time
+	cfg        config.Config
+	store      *store.Store
+	catalog    *catalog.Service
+	router     *router.Client
+	http       *http.Client
+	tmpl       *template.Template
+	static     http.Handler
+	tokenMu    sync.Mutex
+	tokenVal   string
+	tokenTS    time.Time
+	lastSyncMu sync.Mutex
+	lastSync   time.Time
 }
 
 type indexPageData struct {
@@ -186,6 +190,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		s.redirectTo(w, r, "/setup")
 		return
 	}
+
+	s.autoSyncSources()
 
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	sourceFilter := strings.TrimSpace(r.URL.Query().Get("source"))
@@ -805,6 +811,37 @@ func (s *Server) requestSecretsPermission(ctx context.Context) string {
 		return ""
 	}
 	return strings.TrimSpace(payload.ApproveURL)
+}
+
+// autoSyncSources syncs all enabled sources in the background if enough
+// time has passed since the last sync. This ensures the catalog page always
+// shows reasonably fresh data without requiring manual "Sync" clicks.
+func (s *Server) autoSyncSources() {
+	s.lastSyncMu.Lock()
+	if time.Since(s.lastSync) < autoSyncInterval {
+		s.lastSyncMu.Unlock()
+		return
+	}
+	s.lastSync = time.Now()
+	s.lastSyncMu.Unlock()
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		sources, err := s.store.ListSources(ctx)
+		if err != nil {
+			log.Printf("auto-sync: failed to list sources: %v", err)
+			return
+		}
+		for _, src := range sources {
+			if !src.Enabled {
+				continue
+			}
+			if err := s.catalog.SyncSource(ctx, src.ID); err != nil {
+				log.Printf("auto-sync: failed to sync source %s: %v", src.ID, err)
+			}
+		}
+	}()
 }
 
 func (s *Server) repoAllowed(repoURL string) bool {
