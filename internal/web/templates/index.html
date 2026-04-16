@@ -7,82 +7,77 @@
   <link rel="stylesheet" href="{{withBase .BasePath "/static/style.css"}}">
 </head>
 <body>
-  <header class="topbar">
-    <h1><a href="{{withBase .BasePath "/"}}">OpenHost Catalog</a></h1>
-    <nav>
-      <a href="{{withBase .BasePath "/"}}">Catalog</a>
-      <a href="{{withBase .BasePath "/sources"}}">Sources</a>
-    </nav>
-  </header>
+  <h1>OpenHost Catalog</h1>
+  <nav>
+    <a href="{{withBase .BasePath "/"}}">Catalog</a>
+    <a href="{{withBase .BasePath "/sources"}}">Sources</a>
+  </nav>
+  <hr>
 
-  <main>
-    <section class="panel">
-      <h2>Discover Apps</h2>
-      <form method="get" action="{{withBase .BasePath "/"}}" class="search-form">
-        <label>
-          Search
-          <input type="text" name="q" value="{{.Query}}" placeholder="Name, id, or description">
-        </label>
-        <label>
-          Source
-          <select name="source">
-            <option value="">All</option>
-            {{range .Sources}}
-              <option value="{{.ID}}" {{if eq $.SourceFilter .ID}}selected{{end}}>{{.Name}}</option>
-            {{end}}
-          </select>
-        </label>
-        <label>
-          Tag
-          <input type="text" name="tag" value="{{.TagFilter}}" placeholder="search">
-        </label>
-        <button type="submit">Filter</button>
-      </form>
-    </section>
-
-    <section class="panel">
-      <h2>Catalog Entries</h2>
-      {{if .Error}}
-        <p class="error">{{.Error}}</p>
-      {{end}}
-
-      {{if .Apps}}
-      <table>
-        <thead>
-          <tr>
-            <th>App</th>
-            <th>Source</th>
-            <th>Tags</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-        {{range .Apps}}
-          <tr>
-            <td>
-              <a href="{{withBase $.BasePath (printf "/apps/%s/%s" .SourceID .AppID)}}"><strong>{{.Title}}</strong></a>
-              <div class="muted">{{.Description}}</div>
-              <div class="muted mono">{{.RepoURL}}{{if .RepoRef}}@{{.RepoRef}}{{end}}</div>
-            </td>
-            <td>{{.SourceName}}</td>
-            <td>{{if .Tags}}{{join .Tags ", "}}{{else}}-{{end}}</td>
-            <td>
-              <form method="post" action="{{withBase $.BasePath "/publish"}}" class="inline-form">
-                <input type="hidden" name="source_id" value="{{.SourceID}}">
-                <input type="hidden" name="app_id" value="{{.AppID}}">
-                <input type="hidden" name="app_name" value="{{if .DefaultAppName}}{{.DefaultAppName}}{{else}}{{.AppID}}{{end}}">
-                <button type="submit">Publish</button>
-              </form>
-              <a class="button-link" href="{{withBase $.BasePath (printf "/apps/%s/%s" .SourceID .AppID)}}">Details</a>
-            </td>
-          </tr>
+  <h2>Discover Apps</h2>
+  <form method="get" action="{{withBase .BasePath "/"}}" class="search-form">
+    <label>
+      Search
+      <input type="text" name="q" value="{{.Query}}" placeholder="Name, id, or description">
+    </label>
+    <label>
+      Source
+      <select name="source">
+        <option value="">All</option>
+        {{range .Sources}}
+          <option value="{{.ID}}" {{if eq $.SourceFilter .ID}}selected{{end}}>{{.Name}}</option>
         {{end}}
-        </tbody>
-      </table>
-      {{else}}
-        <p class="muted">No catalog entries yet. Add a source on the Sources page.</p>
-      {{end}}
-    </section>
-  </main>
+      </select>
+    </label>
+    <label>
+      Tag
+      <input type="text" name="tag" value="{{.TagFilter}}" placeholder="search">
+    </label>
+    <button type="submit">Filter</button>
+  </form>
+
+  <h2>Catalog Entries</h2>
+  {{if .Error}}
+    <p class="error">{{.Error}}</p>
+  {{end}}
+
+  {{if .Apps}}
+  <table>
+    <thead>
+      <tr>
+        <th>App</th>
+        <th>Source</th>
+        <th>Tags</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+    {{range .Apps}}
+      <tr>
+        <td>
+          <a href="{{withBase $.BasePath (printf "/apps/%s/%s" .SourceID .AppID)}}"><strong>{{.Title}}</strong></a>
+          <div class="muted">{{.Description}}</div>
+          <div class="muted mono" style="font-size: 0.85em;">{{.RepoURL}}{{if .RepoRef}}@{{.RepoRef}}{{end}}</div>
+        </td>
+        <td>{{.SourceName}}</td>
+        <td>{{if .Tags}}{{join .Tags ", "}}{{else}}-{{end}}</td>
+        <td>
+          <div class="actions">
+            <form method="post" action="{{withBase $.BasePath "/publish"}}" class="inline-form">
+              <input type="hidden" name="source_id" value="{{.SourceID}}">
+              <input type="hidden" name="app_id" value="{{.AppID}}">
+              <input type="hidden" name="app_name" value="{{if .DefaultAppName}}{{.DefaultAppName}}{{else}}{{.AppID}}{{end}}">
+              <button type="submit" class="btn-primary">Publish</button>
+            </form>
+            <a class="btn" href="{{withBase $.BasePath (printf "/apps/%s/%s" .SourceID .AppID)}}">Details</a>
+          </div>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}
+    <p class="muted">No catalog entries yet. Add a source on the Sources page.</p>
+  {{end}}
 </body>
 </html>

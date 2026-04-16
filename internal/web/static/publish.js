@@ -54,7 +54,7 @@
 
     var status = data.status || "unknown";
     statusEl.textContent = status;
-    statusEl.className = "status-pill " + statusClass(status);
+    statusEl.className = statusClass(status);
 
     if (errorEl) {
       if (data.error_message) {
