@@ -29,7 +29,6 @@ type sourceFeed struct {
 }
 
 type sourceFeedApp struct {
-	ID                     string   `json:"id"`
 	Title                  string   `json:"title"`
 	Description            string   `json:"description"`
 	RepoURL                string   `json:"repo_url"`
@@ -119,11 +118,17 @@ func (s *Service) SyncSource(ctx context.Context, sourceID string) error {
 	}
 
 	apps := make([]store.CatalogApp, 0, len(feed.Apps))
+	seen := make(map[string]struct{}, len(feed.Apps))
 	for _, a := range feed.Apps {
 		app, ok := normalizeFeedApp(sourceID, a)
 		if !ok {
 			continue
 		}
+		if _, dup := seen[app.AppID]; dup {
+			// Skip duplicates within the same source rather than breaking the whole sync.
+			continue
+		}
+		seen[app.AppID] = struct{}{}
 		apps = append(apps, app)
 	}
 
@@ -148,8 +153,20 @@ func (s *Service) SyncSource(ctx context.Context, sourceID string) error {
 }
 
 func normalizeFeedApp(sourceID string, in sourceFeedApp) (store.CatalogApp, bool) {
-	appID := strings.TrimSpace(in.ID)
-	if appID == "" {
+	repoURL := strings.TrimSpace(in.RepoURL)
+	if repoURL == "" {
+		return store.CatalogApp{}, false
+	}
+	parsed, err := url.Parse(repoURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return store.CatalogApp{}, false
+	}
+
+	// Derive a stable app ID from the repo URL's last path segment (e.g.
+	// "owner/openhost-synapse" -> "openhost-synapse"), falling back to the
+	// title slug if the URL doesn't yield a valid ID.
+	appID := makeSlug(appIDCandidateFromRepoURL(parsed))
+	if !validIDPattern.MatchString(appID) {
 		appID = makeSlug(strings.TrimSpace(in.Title))
 	}
 	if !validIDPattern.MatchString(appID) {
@@ -159,15 +176,6 @@ func normalizeFeedApp(sourceID string, in sourceFeedApp) (store.CatalogApp, bool
 	title := strings.TrimSpace(in.Title)
 	if title == "" {
 		title = appID
-	}
-
-	repoURL := strings.TrimSpace(in.RepoURL)
-	if repoURL == "" {
-		return store.CatalogApp{}, false
-	}
-	parsed, err := url.Parse(repoURL)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return store.CatalogApp{}, false
 	}
 
 	defaultAppName := strings.TrimSpace(in.DefaultAppName)
@@ -192,6 +200,23 @@ func normalizeFeedApp(sourceID string, in sourceFeedApp) (store.CatalogApp, bool
 	}
 
 	return out, true
+}
+
+// appIDCandidateFromRepoURL returns the last non-empty path segment of a
+// parsed repo URL, stripping a trailing ".git" suffix if present. Returns an
+// empty string if no suitable segment exists.
+func appIDCandidateFromRepoURL(u *url.URL) string {
+	path := strings.TrimRight(u.Path, "/")
+	if path == "" {
+		return ""
+	}
+	idx := strings.LastIndex(path, "/")
+	last := path
+	if idx >= 0 {
+		last = path[idx+1:]
+	}
+	last = strings.TrimSuffix(last, ".git")
+	return last
 }
 
 func compactList(items []string) []string {
