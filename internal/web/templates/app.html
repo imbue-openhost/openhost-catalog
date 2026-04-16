@@ -1,8 +1,6 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{.App.Title}} · OpenHost Catalog</title>
   <link rel="stylesheet" href="{{withBase .BasePath "/static/style.css"}}">
 </head>
@@ -11,39 +9,37 @@
   <nav>
     <a href="{{withBase .BasePath "/"}}">Catalog</a>
     <a href="{{withBase .BasePath "/sources"}}">Sources</a>
+    <span class="spacer"></span>
   </nav>
   <hr>
 
   <p><a href="{{withBase .BasePath "/"}}">&larr; Back to catalog</a></p>
   <h2>{{.App.Title}}</h2>
-  <p class="muted">{{.App.Description}}</p>
+  <p style="color: #666;">{{.App.Description}}</p>
 
   <table>
-    <tbody>
-      <tr><th>Catalog ID</th><td class="mono">{{.App.SourceID}}/{{.App.AppID}}</td></tr>
-      <tr><th>Source</th><td>{{.App.SourceName}}</td></tr>
-      <tr><th>Repository</th><td class="mono wrap">{{.App.RepoURL}}{{if .App.RepoRef}}@{{.App.RepoRef}}{{end}}</td></tr>
-      <tr><th>Verified</th><td>{{if .App.Verified}}yes{{else}}no{{end}}</td></tr>
-      <tr><th>Tags</th><td>{{if .App.Tags}}{{join .App.Tags ", "}}{{else}}-{{end}}</td></tr>
-      <tr><th>Categories</th><td>{{if .App.Categories}}{{join .App.Categories ", "}}{{else}}-{{end}}</td></tr>
-      <tr><th>Website</th><td>{{if .App.WebsiteURL}}<a href="{{.App.WebsiteURL}}" target="_blank" rel="noopener">{{.App.WebsiteURL}}</a>{{else}}-{{end}}</td></tr>
-      <tr><th>Docs</th><td>{{if .App.DocsURL}}<a href="{{.App.DocsURL}}" target="_blank" rel="noopener">{{.App.DocsURL}}</a>{{else}}-{{end}}</td></tr>
-    </tbody>
+    <tr><th>Catalog ID</th><td style="font-family: monospace;">{{.App.SourceID}}/{{.App.AppID}}</td></tr>
+    <tr><th>Source</th><td>{{.App.SourceName}}</td></tr>
+    <tr><th>Repository</th><td style="font-family: monospace; word-break: break-word;">{{.App.RepoURL}}{{if .App.RepoRef}}@{{.App.RepoRef}}{{end}}</td></tr>
+    <tr><th>Verified</th><td>{{if .App.Verified}}yes{{else}}no{{end}}</td></tr>
+    <tr><th>Tags</th><td>{{if .App.Tags}}{{join .App.Tags ", "}}{{else}}-{{end}}</td></tr>
+    <tr><th>Categories</th><td>{{if .App.Categories}}{{join .App.Categories ", "}}{{else}}-{{end}}</td></tr>
+    <tr><th>Website</th><td>{{if .App.WebsiteURL}}<a href="{{.App.WebsiteURL}}" target="_blank" rel="noopener">{{.App.WebsiteURL}}</a>{{else}}-{{end}}</td></tr>
+    <tr><th>Docs</th><td>{{if .App.DocsURL}}<a href="{{.App.DocsURL}}" target="_blank" rel="noopener">{{.App.DocsURL}}</a>{{else}}-{{end}}</td></tr>
   </table>
 
-  <h3>Publish</h3>
+  <h2 style="margin-top: 2em;">Publish</h2>
   {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
 
-  <form method="post" action="{{withBase .BasePath "/publish"}}" class="stacked-form">
+  <form method="post" action="{{withBase .BasePath "/publish"}}">
     <input type="hidden" name="source_id" value="{{.App.SourceID}}">
     <input type="hidden" name="app_id" value="{{.App.AppID}}">
 
-    <label>
-      App name
+    <label>App name<br>
       <input type="text" name="app_name" value="{{if .App.DefaultAppName}}{{.App.DefaultAppName}}{{else}}{{.App.AppID}}{{end}}" required style="font-family: monospace; width: 15em;">
     </label>
 
-    <p class="muted">Deployment config is read from the target repo's <code>openhost.toml</code>.</p>
+    <p style="color: #666; font-size: 0.9em;">Deployment config is read from the target repo's <code>openhost.toml</code>.</p>
     <button type="submit" class="btn-primary">Publish</button>
   </form>
 </body>

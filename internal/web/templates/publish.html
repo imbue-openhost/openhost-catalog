@@ -1,8 +1,6 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Publish {{.Publish.Title}} · OpenHost Catalog</title>
   <link rel="stylesheet" href="{{withBase .BasePath "/static/style.css"}}">
 </head>
@@ -11,37 +9,36 @@
   <nav>
     <a href="{{withBase .BasePath "/"}}">Catalog</a>
     <a href="{{withBase .BasePath "/sources"}}">Sources</a>
+    <span class="spacer"></span>
   </nav>
   <hr>
 
-  <main id="publish-page"
-        data-status-url="{{withBase .BasePath (printf "/publishes/%s/status.json" .Publish.ID)}}"
-        data-logs-url="{{withBase .BasePath (printf "/publishes/%s/logs.txt" .Publish.ID)}}"
-        data-terminal="{{if .Terminal}}1{{else}}0{{end}}">
+  <div id="publish-page"
+       data-status-url="{{withBase .BasePath (printf "/publishes/%s/status.json" .Publish.ID)}}"
+       data-logs-url="{{withBase .BasePath (printf "/publishes/%s/logs.txt" .Publish.ID)}}"
+       data-terminal="{{if .Terminal}}1{{else}}0{{end}}">
 
     <p><a href="{{withBase .BasePath "/"}}">&larr; Back to catalog</a></p>
     <h2>Publish: {{.Publish.Title}}</h2>
 
     <table>
-      <tbody>
-        <tr><th>Publish ID</th><td class="mono">{{.Publish.ID}}</td></tr>
-        <tr><th>App name</th><td class="mono" id="router-app-name">{{.Publish.RouterAppName}}</td></tr>
-        <tr><th>Status</th><td><span id="publish-status" class="{{statusClass .Publish.Status}}">{{.Publish.Status}}</span></td></tr>
-        <tr><th>Repository</th><td class="mono wrap">{{.Publish.RepoURL}}{{if .Publish.RepoRef}}@{{.Publish.RepoRef}}{{end}}</td></tr>
-        <tr><th>Requested at</th><td>{{.Publish.CreatedAt}}</td></tr>
-      </tbody>
+      <tr><th>Publish ID</th><td style="font-family: monospace;">{{.Publish.ID}}</td></tr>
+      <tr><th>App name</th><td style="font-family: monospace;" id="router-app-name">{{.Publish.RouterAppName}}</td></tr>
+      <tr><th>Status</th><td><span id="publish-status" class="{{statusClass .Publish.Status}}">{{.Publish.Status}}</span></td></tr>
+      <tr><th>Repository</th><td style="font-family: monospace; word-break: break-word;">{{.Publish.RepoURL}}{{if .Publish.RepoRef}}@{{.Publish.RepoRef}}{{end}}</td></tr>
+      <tr><th>Requested at</th><td>{{.Publish.CreatedAt}}</td></tr>
     </table>
 
     <p id="publish-error" class="error {{if not .Publish.ErrorMessage}}hidden{{end}}">{{.Publish.ErrorMessage}}</p>
 
-    <div id="manual-install" class="notice {{if ne .Publish.Status "redirect_required"}}hidden{{end}}">
+    <div id="manual-install" style="background: #fff8e1; border: 1px solid #f59e0b; border-radius: 4px; padding: 0.8em 1em; {{if ne .Publish.Status "redirect_required"}}display: none;{{end}}">
       <p>One-click deploy is not configured yet for this app instance.</p>
       {{if .Publish.ManualInstallURL}}
         <p><a id="manual-install-link" href="{{.Publish.ManualInstallURL}}">Open OpenHost installer</a></p>
       {{end}}
     </div>
 
-    <div class="actions" id="router-links">
+    <div id="router-links" style="margin-bottom: 1em; display: flex; gap: 0.5em; align-items: center;">
       {{if .RouterAppURL}}
         <a id="router-app-url" class="btn" href="{{.RouterAppURL}}" target="_blank" rel="noopener">Open app</a>
       {{else}}
@@ -55,9 +52,9 @@
       {{end}}
     </div>
 
-    <h3 style="margin-top: 2em;">Logs</h3>
+    <h2 style="margin-top: 2em;">Logs</h2>
     <pre id="publish-logs" class="logs">Waiting for logs...</pre>
-  </main>
+  </div>
 
   <script src="{{withBase .BasePath "/static/publish.js"}}"></script>
 </body>

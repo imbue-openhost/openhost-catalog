@@ -40,11 +40,8 @@
     if (!el) {
       return;
     }
-    if (visible) {
-      el.classList.remove("hidden");
-    } else {
-      el.classList.add("hidden");
-    }
+    el.style.display = visible ? "" : "none";
+    el.classList.remove("hidden");
   }
 
   function updateStatus(data) {

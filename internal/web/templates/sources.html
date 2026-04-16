@@ -1,8 +1,6 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sources · OpenHost Catalog</title>
   <link rel="stylesheet" href="{{withBase .BasePath "/static/style.css"}}">
 </head>
@@ -11,74 +9,64 @@
   <nav>
     <a href="{{withBase .BasePath "/"}}">Catalog</a>
     <a href="{{withBase .BasePath "/sources"}}">Sources</a>
+    <span class="spacer"></span>
   </nav>
   <hr>
 
   <h2>Add Source</h2>
-  {{if .Message}}<p class="ok">{{.Message}}</p>{{end}}
+  {{if .Message}}<p style="color: #080;">{{.Message}}</p>{{end}}
   {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
 
-  <form method="post" action="{{withBase .BasePath "/sources"}}" class="stacked-form">
-    <label>
-      Source URL
-      <input type="url" name="url" required placeholder="https://example.com/catalog.json">
-    </label>
-    <label>
-      Name (optional)
-      <input type="text" name="name" placeholder="Official Catalog">
-    </label>
-    <label>
-      Source ID (optional)
-      <input type="text" name="id" placeholder="official">
-    </label>
-    <button type="submit" class="btn-primary">Add Source</button>
-  </form>
+  <div style="margin-bottom: 1em;">
+    <form method="post" action="{{withBase .BasePath "/sources"}}">
+      <label>Source URL<br><input type="url" name="url" required placeholder="https://example.com/catalog.json" style="width: 400px; margin-bottom: 0.5em;"></label><br>
+      <label>Name (optional)<br><input type="text" name="name" placeholder="Official Catalog" style="width: 250px; margin-bottom: 0.5em;"></label><br>
+      <label>Source ID (optional)<br><input type="text" name="id" placeholder="official" style="width: 150px; margin-bottom: 0.5em;"></label><br>
+      <button type="submit" class="btn-primary">Add Source</button>
+    </form>
+  </div>
 
   <h2 style="margin-top: 2em;">Configured Sources</h2>
   {{if .Sources}}
   <table>
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Name</th>
-        <th>URL</th>
-        <th>Status</th>
-        <th>Last Sync</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
+    <tr>
+      <th>ID</th>
+      <th>Name</th>
+      <th>URL</th>
+      <th>Status</th>
+      <th>Last Sync</th>
+      <th>Actions</th>
+    </tr>
     {{range .Sources}}
-      <tr>
-        <td class="mono">{{.ID}}</td>
-        <td>{{.Name}}</td>
-        <td class="mono wrap">{{.URL}}</td>
-        <td>{{if .Enabled}}enabled{{else}}disabled{{end}}</td>
-        <td>{{if .LastSyncAt}}{{.LastSyncAt}}{{else}}-{{end}}</td>
-        <td>
-          <div class="actions">
-            <form method="post" action="{{withBase $.BasePath (printf "/sources/%s/sync" .ID)}}" class="inline-form">
-              <button type="submit">Sync</button>
-            </form>
-            <form method="post" action="{{withBase $.BasePath (printf "/sources/%s/toggle" .ID)}}" class="inline-form">
-              <button type="submit">{{if .Enabled}}Disable{{else}}Enable{{end}}</button>
-            </form>
-            <form method="post" action="{{withBase $.BasePath (printf "/sources/%s/delete" .ID)}}" class="inline-form" onsubmit="return confirm('Delete source {{.ID}} and all synced entries?');">
-              <button type="submit" class="btn-danger">Delete</button>
-            </form>
-          </div>
-        </td>
-      </tr>
-      {{if .LastError}}
-      <tr>
-        <td colspan="6" class="error">{{.LastError}}</td>
-      </tr>
-      {{end}}
+    <tr>
+      <td style="font-family: monospace;">{{.ID}}</td>
+      <td>{{.Name}}</td>
+      <td style="font-family: monospace; word-break: break-word;">{{.URL}}</td>
+      <td>{{if .Enabled}}enabled{{else}}disabled{{end}}</td>
+      <td>{{if .LastSyncAt}}{{.LastSyncAt}}{{else}}-{{end}}</td>
+      <td>
+        <div style="display: flex; gap: 0.5em; align-items: center; flex-wrap: wrap;">
+          <form method="post" action="{{withBase $.BasePath (printf "/sources/%s/sync" .ID)}}" style="display: inline;">
+            <button type="submit">Sync</button>
+          </form>
+          <form method="post" action="{{withBase $.BasePath (printf "/sources/%s/toggle" .ID)}}" style="display: inline;">
+            <button type="submit">{{if .Enabled}}Disable{{else}}Enable{{end}}</button>
+          </form>
+          <form method="post" action="{{withBase $.BasePath (printf "/sources/%s/delete" .ID)}}" style="display: inline;" onsubmit="return confirm('Delete source {{.ID}} and all synced entries?');">
+            <button type="submit" class="btn-danger">Delete</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {{if .LastError}}
+    <tr>
+      <td colspan="6" class="error">{{.LastError}}</td>
+    </tr>
     {{end}}
-    </tbody>
+    {{end}}
   </table>
   {{else}}
-    <p class="muted">No sources configured.</p>
+    <p style="color: #888;">No sources configured.</p>
   {{end}}
 </body>
 </html>
