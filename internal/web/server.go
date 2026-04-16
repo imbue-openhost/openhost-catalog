@@ -77,8 +77,9 @@ type sourcesPageData struct {
 }
 
 type setupPageData struct {
-	BasePath string
-	Error    string
+	BasePath    string
+	Error       string
+	CurrentMode string // "", "deploy", or "manual"
 }
 
 type publishPageData struct {
@@ -226,16 +227,20 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSetupPage(w http.ResponseWriter, r *http.Request) {
+	mode, _ := s.store.GetSetting(r.Context(), "setup_complete")
 	s.render(w, http.StatusOK, "setup.html", setupPageData{
-		BasePath: s.basePathForRequest(r),
+		BasePath:    s.basePathForRequest(r),
+		CurrentMode: mode,
 	})
 }
 
 func (s *Server) handleSetupSubmit(w http.ResponseWriter, r *http.Request) {
+	currentMode, _ := s.store.GetSetting(r.Context(), "setup_complete")
 	if err := r.ParseForm(); err != nil {
 		s.render(w, http.StatusBadRequest, "setup.html", setupPageData{
-			BasePath: s.basePathForRequest(r),
-			Error:    "Invalid form submission.",
+			BasePath:    s.basePathForRequest(r),
+			CurrentMode: currentMode,
+			Error:       "Invalid form submission.",
 		})
 		return
 	}
@@ -247,15 +252,17 @@ func (s *Server) handleSetupSubmit(w http.ResponseWriter, r *http.Request) {
 		_, err := s.resolveRouterToken(r.Context())
 		if err != nil {
 			s.render(w, http.StatusOK, "setup.html", setupPageData{
-				BasePath: s.basePathForRequest(r),
-				Error:    err.Error(),
+				BasePath:    s.basePathForRequest(r),
+				CurrentMode: currentMode,
+				Error:       err.Error(),
 			})
 			return
 		}
 		if err := s.store.SetSetting(r.Context(), "setup_complete", "deploy"); err != nil {
 			s.render(w, http.StatusInternalServerError, "setup.html", setupPageData{
-				BasePath: s.basePathForRequest(r),
-				Error:    "Failed to save setup preference: " + err.Error(),
+				BasePath:    s.basePathForRequest(r),
+				CurrentMode: currentMode,
+				Error:       "Failed to save setup preference: " + err.Error(),
 			})
 			return
 		}
@@ -264,8 +271,9 @@ func (s *Server) handleSetupSubmit(w http.ResponseWriter, r *http.Request) {
 	case "skip":
 		if err := s.store.SetSetting(r.Context(), "setup_complete", "manual"); err != nil {
 			s.render(w, http.StatusInternalServerError, "setup.html", setupPageData{
-				BasePath: s.basePathForRequest(r),
-				Error:    "Failed to save setup preference: " + err.Error(),
+				BasePath:    s.basePathForRequest(r),
+				CurrentMode: currentMode,
+				Error:       "Failed to save setup preference: " + err.Error(),
 			})
 			return
 		}
@@ -273,8 +281,9 @@ func (s *Server) handleSetupSubmit(w http.ResponseWriter, r *http.Request) {
 
 	default:
 		s.render(w, http.StatusBadRequest, "setup.html", setupPageData{
-			BasePath: s.basePathForRequest(r),
-			Error:    "Unknown action.",
+			BasePath:    s.basePathForRequest(r),
+			CurrentMode: currentMode,
+			Error:       "Unknown action.",
 		})
 	}
 }

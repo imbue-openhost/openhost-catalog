@@ -15,26 +15,58 @@
 
   <h2>Setup</h2>
 
-  <p>Welcome to the OpenHost Catalog. Choose how you want to install apps:</p>
+  {{if eq .CurrentMode "deploy"}}
+    <p>Current mode: <strong>one-click deploy</strong>. The catalog currently deploys apps directly via the OpenHost router token.</p>
+  {{else if eq .CurrentMode "manual"}}
+    <p>Current mode: <strong>manual install links</strong>. The catalog currently redirects you to the OpenHost dashboard to install apps.</p>
+  {{else}}
+    <p>Welcome to the OpenHost Catalog. Choose how you want to install apps:</p>
+  {{end}}
 
   <ul>
-    <li><strong>One-click deploy:</strong> The catalog will deploy apps directly to your OpenHost instance. This requires permission to read the router token from the secrets service.</li>
-    <li><strong>Manual install links:</strong> The catalog will link you to the OpenHost dashboard where you can install apps yourself.</li>
+    <li><strong>One-click deploy:</strong> The catalog deploys apps directly to your OpenHost instance. Requires permission to read the router token from the Secrets app.</li>
+    <li><strong>Manual install links:</strong> The catalog links you to the OpenHost dashboard where you install apps yourself. No router token needed.</li>
   </ul>
 
-  {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+  <h3 style="margin-top: 1.5em;">Impact of changing mode</h3>
+  <p style="color: #666; font-size: 0.9em;">
+    This only affects how the catalog deploys new apps. It does not change your OpenHost login, password, or any already-deployed apps.
+    The router token is never stored by the catalog &mdash; it is re-resolved from the Secrets app on each deploy.
+  </p>
+  <table>
+    <tr>
+      <th>Current state</th>
+      <th>Enable one-click deploy</th>
+      <th>Skip &mdash; use manual install links</th>
+    </tr>
+    <tr{{if eq .CurrentMode ""}} style="background: #f5f5f5;"{{end}}>
+      <td>Not yet set up</td>
+      <td>Attempts to resolve the router token now. Succeeds only if the Secrets app is installed and has granted the catalog access to <code>APP_REPO_ROUTER_TOKEN</code>. On success, switches to one-click mode. On failure, stays unset and shows an error.</td>
+      <td>Switches to manual mode immediately. No token lookup.</td>
+    </tr>
+    <tr{{if eq .CurrentMode "deploy"}} style="background: #f5f5f5;"{{end}}>
+      <td>One-click deploy</td>
+      <td>Re-resolves the router token now. If it still works, no visible change. If the Secrets app was uninstalled or permission revoked, shows an error and stays on one-click mode (future deploys will fail until fixed).</td>
+      <td>Switches to manual mode. Future deploys will redirect to the OpenHost dashboard instead of deploying in-catalog.</td>
+    </tr>
+    <tr{{if eq .CurrentMode "manual"}} style="background: #f5f5f5;"{{end}}>
+      <td>Manual install links</td>
+      <td>Attempts to resolve the router token now. On success, switches to one-click mode. On failure, stays on manual mode and shows an error.</td>
+      <td>No change.</td>
+    </tr>
+  </table>
+
+  {{if .Error}}<p class="error" style="margin-top: 1em;">{{.Error}}</p>{{end}}
 
   <div style="display: flex; gap: 1em; align-items: flex-start; flex-wrap: wrap; margin-top: 1.5em;">
     <form method="post" action="{{withBase .BasePath "/setup"}}">
       <input type="hidden" name="action" value="deploy">
       <button type="submit" class="btn-primary" style="padding: 0.6em 1.5em;">Enable one-click deploy</button>
-      <p style="color: #666; font-size: 0.85em; max-width: 320px;">Tries to resolve the router token now. If a permission approval is needed, you will be told where to approve it.</p>
     </form>
 
     <form method="post" action="{{withBase .BasePath "/setup"}}">
       <input type="hidden" name="action" value="skip">
-      <button type="submit" style="padding: 0.6em 1.5em;">Skip - use manual install links</button>
-      <p style="color: #666; font-size: 0.85em; max-width: 320px;">Install buttons will link to the OpenHost dashboard instead of deploying directly.</p>
+      <button type="submit" style="padding: 0.6em 1.5em;">Skip &mdash; use manual install links</button>
     </form>
   </div>
 </body>
