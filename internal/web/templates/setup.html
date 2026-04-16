@@ -18,8 +18,8 @@
   <p>Welcome to the OpenHost Catalog. Choose how you want to install apps:</p>
 
   <ul>
-    <li><strong>One-click deploy</strong> &mdash; The catalog will deploy apps directly to your OpenHost instance. This requires permission to read the router token from the secrets service.</li>
-    <li><strong>Manual install links</strong> &mdash; The catalog will link you to the OpenHost dashboard where you can install apps yourself.</li>
+    <li><strong>One-click deploy:</strong> The catalog will deploy apps directly to your OpenHost instance. This requires permission to read the router token from the secrets service.</li>
+    <li><strong>Manual install links:</strong> The catalog will link you to the OpenHost dashboard where you can install apps yourself.</li>
   </ul>
 
   {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
@@ -33,7 +33,7 @@
 
     <form method="post" action="{{withBase .BasePath "/setup"}}">
       <input type="hidden" name="action" value="skip">
-      <button type="submit" style="padding: 0.6em 1.5em;">Skip &mdash; use manual install links</button>
+      <button type="submit" style="padding: 0.6em 1.5em;">Skip - use manual install links</button>
       <p style="color: #666; font-size: 0.85em; max-width: 320px;">Install buttons will link to the OpenHost dashboard instead of deploying directly.</p>
     </form>
   </div>
