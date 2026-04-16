@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/imbue-openhost/openhost-catalog/internal/catalog"
 	"github.com/imbue-openhost/openhost-catalog/internal/config"
 	"github.com/imbue-openhost/openhost-catalog/internal/store"
 	"github.com/imbue-openhost/openhost-catalog/internal/web"
@@ -26,6 +27,8 @@ func main() {
 	if err := st.Init(context.Background()); err != nil {
 		log.Fatalf("initialize store schema: %v", err)
 	}
+
+	seedDefaultSource(cfg, st)
 
 	handler, err := web.NewServer(cfg, st)
 	if err != nil {
@@ -54,4 +57,41 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Printf("shutdown error: %v", err)
 	}
+}
+
+// seedDefaultSource adds and syncs the default catalog source if no sources
+// exist yet and DEFAULT_SOURCE_URL is configured.
+func seedDefaultSource(cfg config.Config, st *store.Store) {
+	if cfg.DefaultSourceURL == "" {
+		return
+	}
+
+	ctx := context.Background()
+	sources, err := st.ListSources(ctx)
+	if err != nil {
+		log.Printf("seed: failed to list sources: %v", err)
+		return
+	}
+	if len(sources) > 0 {
+		return
+	}
+
+	log.Printf("seed: no sources configured, adding default source: %s", cfg.DefaultSourceURL)
+	src := store.Source{
+		ID:      "official",
+		Name:    "OpenHost Official",
+		URL:     cfg.DefaultSourceURL,
+		Enabled: true,
+	}
+	if err := st.CreateSource(ctx, src); err != nil {
+		log.Printf("seed: failed to create default source: %v", err)
+		return
+	}
+
+	svc := catalog.NewService(st, &http.Client{Timeout: cfg.RequestTimeout})
+	if err := svc.SyncSource(ctx, src.ID); err != nil {
+		log.Printf("seed: failed to sync default source: %v", err)
+		return
+	}
+	log.Printf("seed: default source synced successfully")
 }
