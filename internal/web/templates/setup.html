@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Setup · OpenHost Catalog</title>
+  <link rel="stylesheet" href="{{withBase .BasePath "/static/style.css"}}">
+</head>
+<body>
+  <h1>OpenHost Catalog</h1>
+  <nav>
+    <a href="{{withBase .BasePath "/"}}">Catalog</a>
+    <a href="{{withBase .BasePath "/sources"}}">Sources</a>
+    <span class="spacer"></span>
+  </nav>
+  <hr>
+
+  <h2>Setup</h2>
+
+  <p>Welcome to the OpenHost Catalog. Choose how you want to install apps:</p>
+
+  <ul>
+    <li><strong>One-click deploy</strong> &mdash; The catalog will deploy apps directly to your OpenHost instance. This requires permission to read the router token from the secrets service.</li>
+    <li><strong>Manual install links</strong> &mdash; The catalog will link you to the OpenHost dashboard where you can install apps yourself.</li>
+  </ul>
+
+  {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+
+  <div style="display: flex; gap: 1em; align-items: flex-start; flex-wrap: wrap; margin-top: 1.5em;">
+    <form method="post" action="{{withBase .BasePath "/setup"}}">
+      <input type="hidden" name="action" value="deploy">
+      <button type="submit" class="btn-primary" style="padding: 0.6em 1.5em;">Enable one-click deploy</button>
+      <p style="color: #666; font-size: 0.85em; max-width: 320px;">Tries to resolve the router token now. If a permission approval is needed, you will be told where to approve it.</p>
+    </form>
+
+    <form method="post" action="{{withBase .BasePath "/setup"}}">
+      <input type="hidden" name="action" value="skip">
+      <button type="submit" style="padding: 0.6em 1.5em;">Skip &mdash; use manual install links</button>
+      <p style="color: #666; font-size: 0.85em; max-width: 320px;">Install buttons will link to the OpenHost dashboard instead of deploying directly.</p>
+    </form>
+  </div>
+</body>
+</html>

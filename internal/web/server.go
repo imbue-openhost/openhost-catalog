@@ -72,6 +72,11 @@ type sourcesPageData struct {
 	Error    string
 }
 
+type setupPageData struct {
+	BasePath string
+	Error    string
+}
+
 type publishPageData struct {
 	BasePath     string
 	Publish      store.Publish
@@ -132,6 +137,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/static/"):
 		s.static.ServeHTTP(w, r)
 		return
+	case r.Method == http.MethodGet && r.URL.Path == "/setup":
+		s.handleSetupPage(w, r)
+		return
+	case r.Method == http.MethodPost && r.URL.Path == "/setup":
+		s.handleSetupSubmit(w, r)
+		return
 	case r.Method == http.MethodGet && r.URL.Path == "/":
 		s.handleIndex(w, r)
 		return
@@ -166,6 +177,16 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	setupMode, err := s.store.GetSetting(ctx, "setup_complete")
+	if err != nil {
+		log.Printf("failed to check setup_complete setting: %v", err)
+	}
+	if setupMode == "" {
+		s.redirectTo(w, r, "/setup")
+		return
+	}
+
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	sourceFilter := strings.TrimSpace(r.URL.Query().Get("source"))
 	tagFilter := strings.TrimSpace(r.URL.Query().Get("tag"))
@@ -193,9 +214,63 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		TagFilter:     tagFilter,
 		Sources:       sources,
 		Apps:          apps,
-		CanDeploy:     s.canDeployDirectly(),
+		CanDeploy:     s.canDeployDirectly(ctx),
 		RouterBaseURL: s.routerBaseURL(r),
 	})
+}
+
+func (s *Server) handleSetupPage(w http.ResponseWriter, r *http.Request) {
+	s.render(w, http.StatusOK, "setup.html", setupPageData{
+		BasePath: s.basePathForRequest(r),
+	})
+}
+
+func (s *Server) handleSetupSubmit(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.render(w, http.StatusBadRequest, "setup.html", setupPageData{
+			BasePath: s.basePathForRequest(r),
+			Error:    "Invalid form submission.",
+		})
+		return
+	}
+
+	action := strings.TrimSpace(r.Form.Get("action"))
+
+	switch action {
+	case "deploy":
+		_, err := s.resolveRouterToken(r.Context())
+		if err != nil {
+			s.render(w, http.StatusOK, "setup.html", setupPageData{
+				BasePath: s.basePathForRequest(r),
+				Error:    "Could not resolve the router token: " + err.Error() + ". Please approve the permission request in the OpenHost dashboard and try again.",
+			})
+			return
+		}
+		if err := s.store.SetSetting(r.Context(), "setup_complete", "deploy"); err != nil {
+			s.render(w, http.StatusInternalServerError, "setup.html", setupPageData{
+				BasePath: s.basePathForRequest(r),
+				Error:    "Failed to save setup preference: " + err.Error(),
+			})
+			return
+		}
+		s.redirectTo(w, r, "/")
+
+	case "skip":
+		if err := s.store.SetSetting(r.Context(), "setup_complete", "manual"); err != nil {
+			s.render(w, http.StatusInternalServerError, "setup.html", setupPageData{
+				BasePath: s.basePathForRequest(r),
+				Error:    "Failed to save setup preference: " + err.Error(),
+			})
+			return
+		}
+		s.redirectTo(w, r, "/")
+
+	default:
+		s.render(w, http.StatusBadRequest, "setup.html", setupPageData{
+			BasePath: s.basePathForRequest(r),
+			Error:    "Unknown action.",
+		})
+	}
 }
 
 func (s *Server) handleSourcesPage(w http.ResponseWriter, r *http.Request, message string, errMsg string) {
@@ -334,7 +409,7 @@ func (s *Server) handleAppDetail(w http.ResponseWriter, r *http.Request) {
 	s.render(w, http.StatusOK, "app.html", appPageData{
 		BasePath:      s.basePathForRequest(r),
 		App:           app,
-		CanDeploy:     s.canDeployDirectly(),
+		CanDeploy:     s.canDeployDirectly(r.Context()),
 		RouterBaseURL: s.routerBaseURL(r),
 	})
 }
@@ -598,7 +673,20 @@ func (s *Server) refreshPublishState(ctx context.Context, publish store.Publish)
 // canDeployDirectly returns true if the catalog has (or can likely get) a
 // router token for one-click deploys. This is a fast, non-blocking check
 // used to decide whether to show "Publish" vs "Install" buttons.
-func (s *Server) canDeployDirectly() bool {
+// It also respects the setup mode: if the user chose "manual", it returns false.
+func (s *Server) canDeployDirectly(ctx context.Context) bool {
+	mode, err := s.store.GetSetting(ctx, "setup_complete")
+	if err != nil {
+		log.Printf("canDeployDirectly: failed to read setup_complete: %v", err)
+		return false
+	}
+	if mode == "manual" {
+		return false
+	}
+	if mode == "" {
+		return false
+	}
+
 	if strings.TrimSpace(s.cfg.RouterToken) != "" {
 		return true
 	}

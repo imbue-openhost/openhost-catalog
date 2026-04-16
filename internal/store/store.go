@@ -167,6 +167,10 @@ func (s *Store) Init(ctx context.Context) error {
 			updated_at TEXT NOT NULL,
 			FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
 		)`,
+		`CREATE TABLE IF NOT EXISTS settings (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		)`,
 		`CREATE INDEX IF NOT EXISTS idx_catalog_apps_title ON catalog_apps(title)`,
 		`CREATE INDEX IF NOT EXISTS idx_publishes_created_at ON publishes(created_at DESC)`,
 	}
@@ -588,6 +592,30 @@ func (s *Store) UpdatePublish(ctx context.Context, publish Publish) error {
 	)
 	if err != nil {
 		return fmt.Errorf("update publish: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) GetSetting(ctx context.Context, key string) (string, error) {
+	var value string
+	err := s.db.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = ?`, key).Scan(&value)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", fmt.Errorf("get setting %q: %w", key, err)
+	}
+	return value, nil
+}
+
+func (s *Store) SetSetting(ctx context.Context, key, value string) error {
+	_, err := s.db.ExecContext(
+		ctx,
+		`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		key, value,
+	)
+	if err != nil {
+		return fmt.Errorf("set setting %q: %w", key, err)
 	}
 	return nil
 }

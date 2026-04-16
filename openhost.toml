@@ -20,5 +20,5 @@ app_data = true
 
 [services.secrets]
 keys = [
-  { key = "APP_REPO_ROUTER_TOKEN", reason = "Deploy apps via OpenHost router API", required = false }
+  { key = "key:APP_REPO_ROUTER_TOKEN", reason = "Deploy apps via OpenHost router API", required = false }
 ]
