@@ -59,7 +59,7 @@
           <form method="post" action="{{withBase $.BasePath "/publish"}}" style="display: inline;">
             <input type="hidden" name="source_id" value="{{.SourceID}}">
             <input type="hidden" name="app_id" value="{{.AppID}}">
-            <input type="hidden" name="app_name" value="{{if .DefaultAppName}}{{.DefaultAppName}}{{else}}{{.AppID}}{{end}}">
+            <input type="hidden" name="app_name" value="{{.AppID}}">
             <button type="submit" class="btn-primary">Publish</button>
           </form>
           {{else}}

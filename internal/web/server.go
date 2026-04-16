@@ -454,11 +454,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if requestedName == "" {
-		if app.DefaultAppName != "" {
-			requestedName = app.DefaultAppName
-		} else {
-			requestedName = app.AppID
-		}
+		requestedName = app.AppID
 	}
 	if !appNamePattern.MatchString(requestedName) {
 		s.render(w, http.StatusBadRequest, "app.html", appPageData{

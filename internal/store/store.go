@@ -33,21 +33,19 @@ type Source struct {
 }
 
 type CatalogApp struct {
-	SourceID               string
-	SourceName             string
-	AppID                  string
-	Title                  string
-	Description            string
-	RepoURL                string
-	RepoRef                string
-	DefaultAppName         string
-	IconURL                string
-	Tags                   []string
-	Categories             []string
-	WebsiteURL             string
-	DocsURL                string
-	MinimumOpenHostVersion string
-	UpdatedAt              string
+	SourceID    string
+	SourceName  string
+	AppID       string
+	Title       string
+	Description string
+	RepoURL     string
+	RepoRef     string
+	IconURL     string
+	Tags        []string
+	Categories  []string
+	WebsiteURL  string
+	DocsURL     string
+	UpdatedAt   string
 }
 
 type Publish struct {
@@ -138,13 +136,11 @@ func (s *Store) Init(ctx context.Context) error {
 			description TEXT NOT NULL DEFAULT '',
 			repo_url TEXT NOT NULL,
 			repo_ref TEXT NOT NULL DEFAULT '',
-			default_app_name TEXT NOT NULL DEFAULT '',
 			icon_url TEXT NOT NULL DEFAULT '',
 			tags_json TEXT NOT NULL DEFAULT '[]',
 			categories_json TEXT NOT NULL DEFAULT '[]',
 			website_url TEXT NOT NULL DEFAULT '',
 			docs_url TEXT NOT NULL DEFAULT '',
-			minimum_openhost_version TEXT NOT NULL DEFAULT '',
 			updated_at TEXT NOT NULL,
 			PRIMARY KEY (source_id, app_id),
 			FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
@@ -270,9 +266,9 @@ func (s *Store) ReplaceCatalogAppsForSource(ctx context.Context, sourceID string
 	}
 
 	insertStmt := `INSERT INTO catalog_apps
-	(source_id, app_id, title, description, repo_url, repo_ref, default_app_name, icon_url,
-	 tags_json, categories_json, website_url, docs_url, minimum_openhost_version, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	(source_id, app_id, title, description, repo_url, repo_ref, icon_url,
+	 tags_json, categories_json, website_url, docs_url, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	now := nowString()
 	for _, app := range apps {
@@ -294,13 +290,11 @@ func (s *Store) ReplaceCatalogAppsForSource(ctx context.Context, sourceID string
 			app.Description,
 			app.RepoURL,
 			app.RepoRef,
-			app.DefaultAppName,
 			app.IconURL,
 			string(tagsJSON),
 			string(categoriesJSON),
 			app.WebsiteURL,
 			app.DocsURL,
-			app.MinimumOpenHostVersion,
 			now,
 		); err != nil {
 			return fmt.Errorf("insert catalog app %s/%s: %w", sourceID, app.AppID, err)
@@ -364,13 +358,11 @@ func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]Ca
 		ca.description,
 		ca.repo_url,
 		ca.repo_ref,
-		ca.default_app_name,
 		ca.icon_url,
 		ca.tags_json,
 		ca.categories_json,
 		ca.website_url,
 		ca.docs_url,
-		ca.minimum_openhost_version,
 		ca.updated_at
 	FROM catalog_apps ca
 	JOIN sources s ON s.id = ca.source_id
@@ -417,13 +409,11 @@ func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]Ca
 			&app.Description,
 			&app.RepoURL,
 			&app.RepoRef,
-			&app.DefaultAppName,
 			&app.IconURL,
 			&tagsJSON,
 			&categoriesJSON,
 			&app.WebsiteURL,
 			&app.DocsURL,
-			&app.MinimumOpenHostVersion,
 			&app.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan catalog app row: %w", err)
@@ -450,13 +440,11 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 			ca.description,
 			ca.repo_url,
 			ca.repo_ref,
-			ca.default_app_name,
 			ca.icon_url,
 			ca.tags_json,
 			ca.categories_json,
 			ca.website_url,
 			ca.docs_url,
-			ca.minimum_openhost_version,
 			ca.updated_at
 		 FROM catalog_apps ca
 		 JOIN sources s ON s.id = ca.source_id
@@ -475,13 +463,11 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 		&app.Description,
 		&app.RepoURL,
 		&app.RepoRef,
-		&app.DefaultAppName,
 		&app.IconURL,
 		&tagsJSON,
 		&categoriesJSON,
 		&app.WebsiteURL,
 		&app.DocsURL,
-		&app.MinimumOpenHostVersion,
 		&app.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

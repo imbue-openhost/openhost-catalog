@@ -30,17 +30,15 @@ type sourceFeed struct {
 }
 
 type sourceFeedApp struct {
-	Title                  string   `json:"title"`
-	Description            string   `json:"description"`
-	RepoURL                string   `json:"repo_url"`
-	RepoRef                string   `json:"repo_ref"`
-	DefaultAppName         string   `json:"default_app_name"`
-	IconURL                string   `json:"icon_url"`
-	Tags                   []string `json:"tags"`
-	Categories             []string `json:"categories"`
-	WebsiteURL             string   `json:"website_url"`
-	DocsURL                string   `json:"docs_url"`
-	MinimumOpenHostVersion string   `json:"minimum_openhost_version"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	RepoURL     string   `json:"repo_url"`
+	RepoRef     string   `json:"repo_ref"`
+	IconURL     string   `json:"icon_url"`
+	Tags        []string `json:"tags"`
+	Categories  []string `json:"categories"`
+	WebsiteURL  string   `json:"website_url"`
+	DocsURL     string   `json:"docs_url"`
 }
 
 func NewService(st *store.Store, client *http.Client) *Service {
@@ -183,25 +181,18 @@ func normalizeFeedApp(sourceID string, in sourceFeedApp) (store.CatalogApp, bool
 		title = appID
 	}
 
-	defaultAppName := strings.TrimSpace(in.DefaultAppName)
-	if defaultAppName == "" {
-		defaultAppName = appID
-	}
-
 	out := store.CatalogApp{
-		SourceID:               sourceID,
-		AppID:                  appID,
-		Title:                  title,
-		Description:            strings.TrimSpace(in.Description),
-		RepoURL:                repoURL,
-		RepoRef:                strings.TrimSpace(in.RepoRef),
-		DefaultAppName:         defaultAppName,
-		IconURL:                strings.TrimSpace(in.IconURL),
-		Tags:                   compactList(in.Tags),
-		Categories:             compactList(in.Categories),
-		WebsiteURL:             strings.TrimSpace(in.WebsiteURL),
-		DocsURL:                strings.TrimSpace(in.DocsURL),
-		MinimumOpenHostVersion: strings.TrimSpace(in.MinimumOpenHostVersion),
+		SourceID:    sourceID,
+		AppID:       appID,
+		Title:       title,
+		Description: strings.TrimSpace(in.Description),
+		RepoURL:     repoURL,
+		RepoRef:     strings.TrimSpace(in.RepoRef),
+		IconURL:     strings.TrimSpace(in.IconURL),
+		Tags:        compactList(in.Tags),
+		Categories:  compactList(in.Categories),
+		WebsiteURL:  strings.TrimSpace(in.WebsiteURL),
+		DocsURL:     strings.TrimSpace(in.DocsURL),
 	}
 
 	return out, true

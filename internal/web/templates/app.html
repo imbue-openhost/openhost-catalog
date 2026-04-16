@@ -36,7 +36,7 @@
     <input type="hidden" name="app_id" value="{{.App.AppID}}">
 
     <label>App name<br>
-      <input type="text" name="app_name" value="{{if .App.DefaultAppName}}{{.App.DefaultAppName}}{{else}}{{.App.AppID}}{{end}}" required style="font-family: monospace; width: 15em;">
+      <input type="text" name="app_name" value="{{.App.AppID}}" required style="font-family: monospace; width: 15em;">
     </label>
 
     <p style="color: #666; font-size: 0.9em;">Deployment config is read from the target repo's <code>openhost.toml</code>.</p>
