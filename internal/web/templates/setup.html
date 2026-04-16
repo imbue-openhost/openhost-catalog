@@ -32,7 +32,17 @@
     Changing modes only affects how the catalog deploys new apps. It does not change your OpenHost login, password, or any already-deployed apps.
   </p>
 
-  {{if .Error}}<p class="error" style="margin-top: 1em;">{{.Error}}</p>{{end}}
+  {{if .SecretsMissing}}
+    <div style="background: #fff8e1; border: 1px solid #f59e0b; border-radius: 4px; padding: 0.8em 1em; margin-top: 1em;">
+      <p><strong>The Secrets app is not installed on this OpenHost instance.</strong></p>
+      <p style="margin-top: 0.5em;">One-click deploy needs it to read the router token. Install the Secrets app first, then return here and click <em>Enable one-click deploy</em> again.</p>
+      <p style="margin-top: 0.5em;">
+        <a class="btn-primary btn" href="{{.SecretsInstallURL}}" target="_blank" rel="noopener">Install the Secrets app</a>
+      </p>
+    </div>
+  {{else if .Error}}
+    <p class="error" style="margin-top: 1em;">{{.Error}}</p>
+  {{end}}
 
   <div style="display: flex; gap: 1em; align-items: flex-start; flex-wrap: wrap; margin-top: 1.5em;">
     <form method="post" action="{{withBase .BasePath "/setup"}}">

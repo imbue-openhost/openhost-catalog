@@ -77,10 +77,16 @@ type sourcesPageData struct {
 }
 
 type setupPageData struct {
-	BasePath    string
-	Error       string
-	CurrentMode string // "", "deploy", or "manual"
+	BasePath          string
+	Error             string
+	CurrentMode       string // "", "deploy", or "manual"
+	SecretsMissing    bool   // true if the last deploy attempt failed because the Secrets app is not installed
+	SecretsInstallURL string // URL to install the Secrets app on the OpenHost dashboard
 }
+
+// ErrSecretsAppMissing is returned when the router's secrets service is unreachable
+// because the Secrets app is not installed on the OpenHost instance.
+var ErrSecretsAppMissing = errors.New("the Secrets app is not installed on this OpenHost instance")
 
 type publishPageData struct {
 	BasePath     string
@@ -251,11 +257,16 @@ func (s *Server) handleSetupSubmit(w http.ResponseWriter, r *http.Request) {
 	case "deploy":
 		_, err := s.resolveRouterToken(r.Context())
 		if err != nil {
-			s.render(w, http.StatusOK, "setup.html", setupPageData{
+			data := setupPageData{
 				BasePath:    s.basePathForRequest(r),
 				CurrentMode: currentMode,
 				Error:       err.Error(),
-			})
+			}
+			if errors.Is(err, ErrSecretsAppMissing) {
+				data.SecretsMissing = true
+				data.SecretsInstallURL = s.routerBaseURL(r) + "/add_app"
+			}
+			s.render(w, http.StatusOK, "setup.html", data)
 			return
 		}
 		if err := s.store.SetSetting(r.Context(), "setup_complete", "deploy"); err != nil {
@@ -769,7 +780,7 @@ func (s *Server) fetchRouterTokenFromSecrets(ctx context.Context) (string, error
 			Message string `json:"message"`
 		}
 		if json.Unmarshal(raw, &svcErr) == nil && svcErr.Error == "service_not_available" {
-			return "", errors.New("the Secrets app is not installed on this OpenHost instance. Install the Secrets app first, then add an API token as APP_REPO_ROUTER_TOKEN")
+			return "", ErrSecretsAppMissing
 		}
 		return "", fmt.Errorf("secrets service is unavailable (HTTP %d)", resp.StatusCode)
 	}
