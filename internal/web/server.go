@@ -248,7 +248,7 @@ func (s *Server) handleSetupSubmit(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			s.render(w, http.StatusOK, "setup.html", setupPageData{
 				BasePath: s.basePathForRequest(r),
-				Error:    "Could not resolve the router token: " + err.Error() + ". Please approve the permission request in the OpenHost dashboard and try again.",
+				Error:    err.Error(),
 			})
 			return
 		}
@@ -758,8 +758,25 @@ func (s *Server) fetchRouterTokenFromSecrets(ctx context.Context) (string, error
 		}
 		return "", errors.New("permission denied when requesting APP_REPO_ROUTER_TOKEN from secrets service")
 	}
+	if resp.StatusCode == http.StatusServiceUnavailable {
+		// Parse the JSON error to check for "service not available" (secrets app not installed)
+		var svcErr struct {
+			Error   string `json:"error"`
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(raw, &svcErr) == nil && svcErr.Error == "service_not_available" {
+			return "", errors.New("the Secrets app is not installed on this OpenHost instance. Install the Secrets app first, then add an API token as APP_REPO_ROUTER_TOKEN")
+		}
+		return "", fmt.Errorf("secrets service is unavailable (HTTP %d)", resp.StatusCode)
+	}
 	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("secrets service returned %s: %s", resp.Status, strings.TrimSpace(string(raw)))
+		var jsonErr struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(raw, &jsonErr) == nil && jsonErr.Message != "" {
+			return "", fmt.Errorf("secrets service error: %s", jsonErr.Message)
+		}
+		return "", fmt.Errorf("secrets service error (HTTP %d)", resp.StatusCode)
 	}
 
 	var payload struct {
