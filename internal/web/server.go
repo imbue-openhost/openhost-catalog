@@ -264,7 +264,11 @@ func (s *Server) handleSetupSubmit(w http.ResponseWriter, r *http.Request) {
 			}
 			if errors.Is(err, ErrSecretsAppMissing) {
 				data.SecretsMissing = true
-				data.SecretsInstallURL = s.routerBaseURL(r) + "/add_app"
+				// Prefill the Deploy App form with the bundled Secrets app's
+				// file:// URL so the user just has to click "Authorize & Deploy".
+				// This is the ansible-provisioned default (apps_dir_override).
+				secretsRepo := "file:///home/host/openhost/apps/secrets"
+				data.SecretsInstallURL = s.routerBaseURL(r) + "/add_app?repo=" + url.QueryEscape(secretsRepo)
 			}
 			s.render(w, http.StatusOK, "setup.html", data)
 			return
