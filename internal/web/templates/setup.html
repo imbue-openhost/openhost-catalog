@@ -28,33 +28,9 @@
     <li><strong>Manual install links:</strong> The catalog links you to the OpenHost dashboard where you install apps yourself. No router token needed.</li>
   </ul>
 
-  <h3 style="margin-top: 1.5em;">Impact of changing mode</h3>
   <p style="color: #666; font-size: 0.9em;">
-    This only affects how the catalog deploys new apps. It does not change your OpenHost login, password, or any already-deployed apps.
-    The router token is never stored by the catalog &mdash; it is re-resolved from the Secrets app on each deploy.
+    Changing modes only affects how the catalog deploys new apps. It does not change your OpenHost login, password, or any already-deployed apps.
   </p>
-  <table>
-    <tr>
-      <th>Current state</th>
-      <th>Enable one-click deploy</th>
-      <th>Skip &mdash; use manual install links</th>
-    </tr>
-    <tr{{if eq .CurrentMode ""}} style="background: #f5f5f5;"{{end}}>
-      <td>Not yet set up</td>
-      <td>Attempts to resolve the router token now. Succeeds only if the Secrets app is installed and has granted the catalog access to <code>APP_REPO_ROUTER_TOKEN</code>. On success, switches to one-click mode. On failure, stays unset and shows an error.</td>
-      <td>Switches to manual mode immediately. No token lookup.</td>
-    </tr>
-    <tr{{if eq .CurrentMode "deploy"}} style="background: #f5f5f5;"{{end}}>
-      <td>One-click deploy</td>
-      <td>Re-resolves the router token now. If it still works, no visible change. If the Secrets app was uninstalled or permission revoked, shows an error and stays on one-click mode (future deploys will fail until fixed).</td>
-      <td>Switches to manual mode. Future deploys will redirect to the OpenHost dashboard instead of deploying in-catalog.</td>
-    </tr>
-    <tr{{if eq .CurrentMode "manual"}} style="background: #f5f5f5;"{{end}}>
-      <td>Manual install links</td>
-      <td>Attempts to resolve the router token now. On success, switches to one-click mode. On failure, stays on manual mode and shows an error.</td>
-      <td>No change.</td>
-    </tr>
-  </table>
 
   {{if .Error}}<p class="error" style="margin-top: 1em;">{{.Error}}</p>{{end}}
 
