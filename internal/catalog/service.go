@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -124,9 +125,13 @@ func (s *Service) SyncSource(ctx context.Context, sourceID string) error {
 		if !ok {
 			continue
 		}
+		// A source may not contain two apps with the same derived ID.
+		// (Across sources, collisions are fine; within a source, this is a
+		// feed publisher error that needs to be fixed in the source feed.)
 		if _, dup := seen[app.AppID]; dup {
-			// Skip duplicates within the same source rather than breaking the whole sync.
-			continue
+			errMsg := fmt.Sprintf("duplicate app id %q in source feed; app IDs must be unique within a source", app.AppID)
+			_ = s.store.UpdateSourceError(ctx, sourceID, errMsg)
+			return errors.New(errMsg)
 		}
 		seen[app.AppID] = struct{}{}
 		apps = append(apps, app)
