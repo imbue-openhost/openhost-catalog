@@ -24,23 +24,23 @@ Each source URL must return JSON with schema `openhost.catalog.v1`:
   "generated_at": "2026-03-28T00:00:00Z",
   "apps": [
     {
-      "id": "searxng",
       "title": "SearXNG",
       "description": "Privacy-respecting metasearch engine",
-      "repo_url": "https://github.com/imbue-ai/openhost-searxng",
-      "repo_ref": "master",
-      "default_app_name": "searxng",
-      "icon_url": "https://example.com/icons/searxng.png",
+      "repo_url": "https://github.com/imbue-openhost/openhost-searxng",
+      "repo_ref": "",
+      "icon_url": "",
       "tags": ["search", "privacy"],
       "categories": ["search"],
-      "website_url": "https://github.com/imbue-ai/openhost-searxng",
-      "docs_url": "https://github.com/imbue-ai/openhost-searxng#readme",
-      "minimum_openhost_version": "0.1.0",
-      "verified": true
+      "website_url": "https://docs.searxng.org",
+      "docs_url": "https://github.com/imbue-openhost/openhost-searxng#readme"
     }
   ]
 }
 ```
+
+App IDs are derived from the last path segment of `repo_url` (with `.git` stripped). `repo_url` must be unique within a source; duplicates cause a sync failure.
+
+Only `title`, `description`, and `repo_url` are required. All other fields may be omitted or empty.
 
 ## Runtime configuration
 
@@ -52,6 +52,7 @@ Each source URL must return JSON with schema `openhost.catalog.v1`:
 - `OPENHOST_APP_TOKEN` (used to fetch `APP_REPO_ROUTER_TOKEN` from secrets service)
 - `OPENHOST_APP_NAME` (default `openhost-catalog`)
 - `OPENHOST_APP_BASE_PATH` (injected by OpenHost; used for path-based routing compatibility)
+- `DEFAULT_SOURCE_URL` (auto-seeded on first boot if no sources are configured; defaults to the official `imbue-openhost/openhost-apps` catalog)
 - `CATALOG_ALLOW_HTTP_REPO_URLS` (default `false`)
 - `CATALOG_ALLOW_FILE_URLS` (default `false`)
 - `CATALOG_HTTP_TIMEOUT_SECONDS` (default `10`)
