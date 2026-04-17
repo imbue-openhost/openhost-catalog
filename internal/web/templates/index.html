@@ -16,6 +16,12 @@
 
   <h2>Available Apps</h2>
 
+  {{if .FailedSyncNames}}
+  <div style="background: #fff8e1; border: 1px solid #f59e0b; border-radius: 4px; padding: 0.6em 1em; margin-bottom: 1em;">
+    <strong>Showing possibly stale data.</strong> Could not sync source{{if gt (len .FailedSyncNames) 1}}s{{end}}: {{join .FailedSyncNames ", "}}. See the <a href="{{withBase .BasePath "/sources"}}">Sources page</a> for details.
+  </div>
+  {{end}}
+
   <div style="margin-bottom: 1em; display: flex; gap: 0.5em; align-items: end; flex-wrap: wrap;">
     <form method="get" action="{{withBase .BasePath "/"}}" style="display: flex; gap: 0.5em; align-items: end; flex-wrap: wrap;">
       <label>Search<br><input type="text" name="q" value="{{.Query}}" placeholder="Name, id, or description" style="width: 250px;"></label>

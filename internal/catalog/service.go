@@ -61,6 +61,10 @@ func (s *Service) SyncSource(ctx context.Context, sourceID string) error {
 	if src.LastModified != "" {
 		req.Header.Set("If-Modified-Since", src.LastModified)
 	}
+	// Ask upstream CDNs to revalidate against origin rather than serving a
+	// cached copy. Without this, raw.githubusercontent.com can serve stale
+	// JSON for several minutes after a push.
+	req.Header.Set("Cache-Control", "no-cache")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {

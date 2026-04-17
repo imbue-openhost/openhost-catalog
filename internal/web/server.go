@@ -46,15 +46,16 @@ type Server struct {
 }
 
 type indexPageData struct {
-	BasePath      string
-	Query         string
-	SourceFilter  string
-	TagFilter     string
-	Sources       []store.Source
-	Apps          []store.CatalogApp
-	Error         string
-	CanDeploy     bool
-	RouterBaseURL string
+	BasePath        string
+	Query           string
+	SourceFilter    string
+	TagFilter       string
+	Sources         []store.Source
+	Apps            []store.CatalogApp
+	Error           string
+	CanDeploy       bool
+	RouterBaseURL   string
+	FailedSyncNames []string
 }
 
 type appPageData struct {
@@ -194,7 +195,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.syncEnabledSources(ctx)
+	failedSyncs := s.syncEnabledSources(ctx)
 
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	sourceFilter := strings.TrimSpace(r.URL.Query().Get("source"))
@@ -217,14 +218,15 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, http.StatusOK, "index.html", indexPageData{
-		BasePath:      s.basePathForRequest(r),
-		Query:         query,
-		SourceFilter:  sourceFilter,
-		TagFilter:     tagFilter,
-		Sources:       sources,
-		Apps:          apps,
-		CanDeploy:     s.canDeployDirectly(ctx),
-		RouterBaseURL: s.routerBaseURL(r),
+		BasePath:        s.basePathForRequest(r),
+		Query:           query,
+		SourceFilter:    sourceFilter,
+		TagFilter:       tagFilter,
+		Sources:         sources,
+		Apps:            apps,
+		CanDeploy:       s.canDeployDirectly(ctx),
+		RouterBaseURL:   s.routerBaseURL(r),
+		FailedSyncNames: failedSyncs,
 	})
 }
 
@@ -839,25 +841,28 @@ func (s *Server) requestSecretsPermission(ctx context.Context) string {
 }
 
 // syncEnabledSources syncs all enabled sources inline. Called on every catalog
-// page load so users always see fresh data. Failures are logged but don't block
-// the page render - stale data is better than an error screen.
-func (s *Server) syncEnabledSources(ctx context.Context) {
+// page load so users always see fresh data. Returns the names of sources whose
+// sync failed so the caller can surface a stale-data warning in the UI.
+func (s *Server) syncEnabledSources(ctx context.Context) []string {
 	syncCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	sources, err := s.store.ListSources(syncCtx)
 	if err != nil {
 		log.Printf("sync: failed to list sources: %v", err)
-		return
+		return nil
 	}
+	var failed []string
 	for _, src := range sources {
 		if !src.Enabled {
 			continue
 		}
 		if err := s.catalog.SyncSource(syncCtx, src.ID); err != nil {
 			log.Printf("sync: failed to sync source %s: %v", src.ID, err)
+			failed = append(failed, src.Name)
 		}
 	}
+	return failed
 }
 
 func (s *Server) repoAllowed(repoURL string) bool {
@@ -945,6 +950,9 @@ func (s *Server) redirectTo(w http.ResponseWriter, r *http.Request, path string)
 
 func (s *Server) render(w http.ResponseWriter, status int, name string, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// Never cache catalog pages - they are synced on every load and stale
+	// views would make source edits look like they haven't taken effect.
+	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 	if err := s.tmpl.ExecuteTemplate(w, name, data); err != nil {
 		log.Printf("template render error for %s: %v", name, err)
