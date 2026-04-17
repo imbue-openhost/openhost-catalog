@@ -24,6 +24,7 @@ Each source URL must return JSON with schema `openhost.catalog.v1`:
   "generated_at": "2026-03-28T00:00:00Z",
   "apps": [
     {
+      "name": "searxng",
       "title": "SearXNG",
       "description": "Privacy-respecting metasearch engine",
       "repo_url": "https://github.com/imbue-openhost/openhost-searxng",
@@ -38,9 +39,9 @@ Each source URL must return JSON with schema `openhost.catalog.v1`:
 }
 ```
 
-App IDs are derived from the last path segment of `repo_url` (with `.git` stripped). `repo_url` must be unique within a source; duplicates cause a sync failure.
+Required fields: `name`, `title`, `repo_url`. All others may be omitted.
 
-Only `title`, `description`, and `repo_url` are required. All other fields may be omitted or empty.
+`name` must be lowercase alphanumeric with optional interior hyphens (matches OpenHost's app name format). It is the catalog's identifier for the app, the default name when deploying, and must be unique within a source.
 
 ## Runtime configuration
 

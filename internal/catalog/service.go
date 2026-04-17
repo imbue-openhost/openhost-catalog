@@ -30,6 +30,7 @@ type sourceFeed struct {
 }
 
 type sourceFeedApp struct {
+	Name        string   `json:"name"`
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
 	RepoURL     string   `json:"repo_url"`
@@ -142,13 +143,10 @@ func normalizeFeedApp(sourceID string, in sourceFeedApp) (store.CatalogApp, bool
 		return store.CatalogApp{}, false
 	}
 
-	// Derive a stable app ID from the repo URL's last path segment (e.g.
-	// "owner/openhost-synapse" -> "openhost-synapse"), falling back to the
-	// title slug if the URL doesn't yield a valid ID.
-	appID := makeSlug(appIDCandidateFromRepoURL(parsed))
-	if !validIDPattern.MatchString(appID) {
-		appID = makeSlug(strings.TrimSpace(in.Title))
-	}
+	// The feed's `name` field is the canonical app identifier used for
+	// catalog URLs, DB keys, and the default deployed app name. It must
+	// match OpenHost's app name format.
+	appID := strings.TrimSpace(in.Name)
 	if !validIDPattern.MatchString(appID) {
 		return store.CatalogApp{}, false
 	}
@@ -175,23 +173,6 @@ func normalizeFeedApp(sourceID string, in sourceFeedApp) (store.CatalogApp, bool
 	return out, true
 }
 
-// appIDCandidateFromRepoURL returns the last non-empty path segment of a
-// parsed repo URL, stripping a trailing ".git" suffix if present. Returns an
-// empty string if no suitable segment exists.
-func appIDCandidateFromRepoURL(u *url.URL) string {
-	path := strings.TrimRight(u.Path, "/")
-	if path == "" {
-		return ""
-	}
-	idx := strings.LastIndex(path, "/")
-	last := path
-	if idx >= 0 {
-		last = path[idx+1:]
-	}
-	last = strings.TrimSuffix(last, ".git")
-	return last
-}
-
 func compactList(items []string) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {
@@ -201,22 +182,4 @@ func compactList(items []string) []string {
 		}
 	}
 	return out
-}
-
-func makeSlug(in string) string {
-	in = strings.ToLower(strings.TrimSpace(in))
-	replacer := strings.NewReplacer(
-		" ", "-",
-		"_", "-",
-		"/", "-",
-		".", "-",
-	)
-	in = replacer.Replace(in)
-	in = regexp.MustCompile(`[^a-z0-9-]+`).ReplaceAllString(in, "")
-	in = regexp.MustCompile(`-+`).ReplaceAllString(in, "-")
-	in = strings.Trim(in, "-")
-	if in == "" {
-		return "app"
-	}
-	return in
 }
