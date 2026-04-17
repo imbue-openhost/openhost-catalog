@@ -44,9 +44,6 @@
       <td>{{if .LastSyncAt}}{{.LastSyncAt}}{{else}}-{{end}}</td>
       <td>
         <div style="display: flex; gap: 0.5em; align-items: center; flex-wrap: wrap;">
-          <form method="post" action="{{withBase $.BasePath (printf "/sources/%s/sync" .ID)}}" style="display: inline;">
-            <button type="submit">Sync</button>
-          </form>
           <form method="post" action="{{withBase $.BasePath (printf "/sources/%s/toggle" .ID)}}" style="display: inline;">
             <button type="submit">{{if .Enabled}}Disable{{else}}Enable{{end}}</button>
           </form>

@@ -32,21 +32,17 @@ var assets embed.FS
 
 var appNamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
-const autoSyncInterval = 5 * time.Minute
-
 type Server struct {
-	cfg        config.Config
-	store      *store.Store
-	catalog    *catalog.Service
-	router     *router.Client
-	http       *http.Client
-	tmpl       *template.Template
-	static     http.Handler
-	tokenMu    sync.Mutex
-	tokenVal   string
-	tokenTS    time.Time
-	lastSyncMu sync.Mutex
-	lastSync   time.Time
+	cfg      config.Config
+	store    *store.Store
+	catalog  *catalog.Service
+	router   *router.Client
+	http     *http.Client
+	tmpl     *template.Template
+	static   http.Handler
+	tokenMu  sync.Mutex
+	tokenVal string
+	tokenTS  time.Time
 }
 
 type indexPageData struct {
@@ -198,7 +194,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.autoSyncSources()
+	s.syncEnabledSources(ctx)
 
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	sourceFilter := strings.TrimSpace(r.URL.Query().Get("source"))
@@ -388,13 +384,6 @@ func (s *Server) handleSourceAction(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	switch action {
-	case "sync":
-		err := s.catalog.SyncSource(ctx, sourceID)
-		if err != nil {
-			s.handleSourcesPage(w, r, "", "sync failed: "+humanizeErr(err))
-			return
-		}
-		s.redirectTo(w, r, "/sources")
 	case "toggle":
 		src, err := s.store.GetSource(ctx, sourceID)
 		if err != nil {
@@ -849,35 +838,26 @@ func (s *Server) requestSecretsPermission(ctx context.Context) string {
 	return strings.TrimSpace(payload.ApproveURL)
 }
 
-// autoSyncSources syncs all enabled sources in the background if enough
-// time has passed since the last sync. This ensures the catalog page always
-// shows reasonably fresh data without requiring manual "Sync" clicks.
-func (s *Server) autoSyncSources() {
-	s.lastSyncMu.Lock()
-	if time.Since(s.lastSync) < autoSyncInterval {
-		s.lastSyncMu.Unlock()
+// syncEnabledSources syncs all enabled sources inline. Called on every catalog
+// page load so users always see fresh data. Failures are logged but don't block
+// the page render - stale data is better than an error screen.
+func (s *Server) syncEnabledSources(ctx context.Context) {
+	syncCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	sources, err := s.store.ListSources(syncCtx)
+	if err != nil {
+		log.Printf("sync: failed to list sources: %v", err)
 		return
 	}
-	s.lastSync = time.Now()
-	s.lastSyncMu.Unlock()
-
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		sources, err := s.store.ListSources(ctx)
-		if err != nil {
-			log.Printf("auto-sync: failed to list sources: %v", err)
-			return
+	for _, src := range sources {
+		if !src.Enabled {
+			continue
 		}
-		for _, src := range sources {
-			if !src.Enabled {
-				continue
-			}
-			if err := s.catalog.SyncSource(ctx, src.ID); err != nil {
-				log.Printf("auto-sync: failed to sync source %s: %v", src.ID, err)
-			}
+		if err := s.catalog.SyncSource(syncCtx, src.ID); err != nil {
+			log.Printf("sync: failed to sync source %s: %v", src.ID, err)
 		}
-	}()
+	}
 }
 
 func (s *Server) repoAllowed(repoURL string) bool {
