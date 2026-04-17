@@ -20,16 +20,14 @@ type Store struct {
 }
 
 type Source struct {
-	ID           string
-	Name         string
-	URL          string
-	Enabled      bool
-	ETag         string
-	LastModified string
-	LastSyncAt   string
-	LastError    string
-	CreatedAt    string
-	UpdatedAt    string
+	ID         string
+	Name       string
+	URL        string
+	Enabled    bool
+	LastSyncAt string
+	LastError  string
+	CreatedAt  string
+	UpdatedAt  string
 }
 
 type CatalogApp struct {
@@ -122,8 +120,6 @@ func (s *Store) Init(ctx context.Context) error {
 			name TEXT NOT NULL,
 			url TEXT NOT NULL UNIQUE,
 			enabled INTEGER NOT NULL DEFAULT 1,
-			etag TEXT NOT NULL DEFAULT '',
-			last_modified TEXT NOT NULL DEFAULT '',
 			last_sync_at TEXT NOT NULL DEFAULT '',
 			last_error TEXT NOT NULL DEFAULT '',
 			created_at TEXT NOT NULL,
@@ -182,8 +178,8 @@ func (s *Store) CreateSource(ctx context.Context, src Source) error {
 	_, err := s.db.ExecContext(
 		ctx,
 		`INSERT INTO sources
-		(id, name, url, enabled, etag, last_modified, last_sync_at, last_error, created_at, updated_at)
-		VALUES (?, ?, ?, ?, '', '', '', '', ?, ?)`,
+		(id, name, url, enabled, last_sync_at, last_error, created_at, updated_at)
+		VALUES (?, ?, ?, ?, '', '', ?, ?)`,
 		src.ID,
 		src.Name,
 		src.URL,
@@ -200,7 +196,7 @@ func (s *Store) CreateSource(ctx context.Context, src Source) error {
 func (s *Store) GetSource(ctx context.Context, id string) (Source, error) {
 	row := s.db.QueryRowContext(
 		ctx,
-		`SELECT id, name, url, enabled, etag, last_modified, last_sync_at, last_error, created_at, updated_at
+		`SELECT id, name, url, enabled, last_sync_at, last_error, created_at, updated_at
 		 FROM sources WHERE id = ?`,
 		id,
 	)
@@ -210,7 +206,7 @@ func (s *Store) GetSource(ctx context.Context, id string) (Source, error) {
 func (s *Store) ListSources(ctx context.Context) ([]Source, error) {
 	rows, err := s.db.QueryContext(
 		ctx,
-		`SELECT id, name, url, enabled, etag, last_modified, last_sync_at, last_error, created_at, updated_at
+		`SELECT id, name, url, enabled, last_sync_at, last_error, created_at, updated_at
 		 FROM sources ORDER BY lower(name), id`,
 	)
 	if err != nil {
@@ -307,44 +303,38 @@ func (s *Store) ReplaceCatalogAppsForSource(ctx context.Context, sourceID string
 	return nil
 }
 
-func (s *Store) UpdateSourceAfterSync(
-	ctx context.Context,
-	sourceID string,
-	name string,
-	etag string,
-	lastModified string,
-	lastError string,
-) error {
+// MarkSourceSynced records a successful sync: updates the source name,
+// clears any prior error, and stamps last_sync_at.
+func (s *Store) MarkSourceSynced(ctx context.Context, sourceID string, name string) error {
+	now := nowString()
 	_, err := s.db.ExecContext(
 		ctx,
 		`UPDATE sources
-		 SET name = ?, etag = ?, last_modified = ?, last_sync_at = ?, last_error = ?, updated_at = ?
+		 SET name = ?, last_sync_at = ?, last_error = '', updated_at = ?
 		 WHERE id = ?`,
 		name,
-		etag,
-		lastModified,
-		nowString(),
-		lastError,
-		nowString(),
+		now,
+		now,
 		sourceID,
 	)
 	if err != nil {
-		return fmt.Errorf("update source sync metadata: %w", err)
+		return fmt.Errorf("mark source synced: %w", err)
 	}
 	return nil
 }
 
-func (s *Store) UpdateSourceError(ctx context.Context, sourceID string, lastError string) error {
+// MarkSourceSyncFailed records a failed sync: stores the error but does NOT
+// bump last_sync_at, so "Last Sync" remains the last successful sync time.
+func (s *Store) MarkSourceSyncFailed(ctx context.Context, sourceID string, lastError string) error {
 	_, err := s.db.ExecContext(
 		ctx,
-		`UPDATE sources SET last_error = ?, last_sync_at = ?, updated_at = ? WHERE id = ?`,
+		`UPDATE sources SET last_error = ?, updated_at = ? WHERE id = ?`,
 		lastError,
-		nowString(),
 		nowString(),
 		sourceID,
 	)
 	if err != nil {
-		return fmt.Errorf("update source error: %w", err)
+		return fmt.Errorf("mark source sync failed: %w", err)
 	}
 	return nil
 }
@@ -605,8 +595,6 @@ func scanSource(row interface {
 		&src.Name,
 		&src.URL,
 		&enabled,
-		&src.ETag,
-		&src.LastModified,
 		&src.LastSyncAt,
 		&src.LastError,
 		&src.CreatedAt,

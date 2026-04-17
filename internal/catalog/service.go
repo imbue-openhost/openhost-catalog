@@ -55,15 +55,13 @@ func (s *Service) SyncSource(ctx context.Context, sourceID string) error {
 	if err != nil {
 		return fmt.Errorf("create source request: %w", err)
 	}
-	// Always request fresh data. Conditional (If-None-Match / If-Modified-Since)
-	// requests cause 304 responses when upstream CDNs (e.g. raw.githubusercontent.com)
-	// still serve a stale cached copy, which silently prevents catalog updates.
+	// Ask upstream CDNs to revalidate against origin; raw.githubusercontent.com
+	// can serve stale JSON for minutes otherwise.
 	req.Header.Set("Cache-Control", "no-cache")
-	req.Header.Set("Pragma", "no-cache")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		_ = s.store.UpdateSourceError(ctx, sourceID, "fetch failed: "+err.Error())
+		_ = s.store.MarkSourceSyncFailed(ctx, sourceID, "fetch failed: "+err.Error())
 		return fmt.Errorf("fetch source feed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -74,24 +72,24 @@ func (s *Service) SyncSource(ctx context.Context, sourceID string) error {
 		if errMsg == "" {
 			errMsg = "unexpected status: " + resp.Status
 		}
-		_ = s.store.UpdateSourceError(ctx, sourceID, errMsg)
+		_ = s.store.MarkSourceSyncFailed(ctx, sourceID, errMsg)
 		return fmt.Errorf("source returned %s", resp.Status)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
 	if err != nil {
-		_ = s.store.UpdateSourceError(ctx, sourceID, "read failed: "+err.Error())
+		_ = s.store.MarkSourceSyncFailed(ctx, sourceID, "read failed: "+err.Error())
 		return fmt.Errorf("read source response body: %w", err)
 	}
 
 	var feed sourceFeed
 	if err := json.Unmarshal(body, &feed); err != nil {
-		_ = s.store.UpdateSourceError(ctx, sourceID, "invalid JSON feed")
+		_ = s.store.MarkSourceSyncFailed(ctx, sourceID, "invalid JSON feed")
 		return fmt.Errorf("parse source JSON: %w", err)
 	}
 	if strings.TrimSpace(feed.Schema) != "openhost.catalog.v1" {
 		errMsg := "unsupported feed schema"
-		_ = s.store.UpdateSourceError(ctx, sourceID, errMsg)
+		_ = s.store.MarkSourceSyncFailed(ctx, sourceID, errMsg)
 		return fmt.Errorf("%s: %q", errMsg, feed.Schema)
 	}
 
@@ -107,7 +105,7 @@ func (s *Service) SyncSource(ctx context.Context, sourceID string) error {
 		// feed publisher error that needs to be fixed in the source feed.)
 		if _, dup := seen[app.AppID]; dup {
 			errMsg := fmt.Sprintf("duplicate app id %q in source feed; app IDs must be unique within a source", app.AppID)
-			_ = s.store.UpdateSourceError(ctx, sourceID, errMsg)
+			_ = s.store.MarkSourceSyncFailed(ctx, sourceID, errMsg)
 			return errors.New(errMsg)
 		}
 		seen[app.AppID] = struct{}{}
@@ -115,7 +113,7 @@ func (s *Service) SyncSource(ctx context.Context, sourceID string) error {
 	}
 
 	if err := s.store.ReplaceCatalogAppsForSource(ctx, sourceID, apps); err != nil {
-		_ = s.store.UpdateSourceError(ctx, sourceID, "db update failed: "+err.Error())
+		_ = s.store.MarkSourceSyncFailed(ctx, sourceID, "db update failed: "+err.Error())
 		return err
 	}
 
@@ -127,7 +125,7 @@ func (s *Service) SyncSource(ctx context.Context, sourceID string) error {
 		name = sourceID
 	}
 
-	if err := s.store.UpdateSourceAfterSync(ctx, sourceID, name, "", "", ""); err != nil {
+	if err := s.store.MarkSourceSynced(ctx, sourceID, name); err != nil {
 		return err
 	}
 

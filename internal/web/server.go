@@ -32,6 +32,10 @@ var assets embed.FS
 
 var appNamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
+// sourceSyncBudget caps how long a single page load can spend syncing all
+// enabled sources before we give up and render with whatever data we have.
+const sourceSyncBudget = 10 * time.Second
+
 type Server struct {
 	cfg      config.Config
 	store    *store.Store
@@ -844,7 +848,7 @@ func (s *Server) requestSecretsPermission(ctx context.Context) string {
 // page load so users always see fresh data. Returns the names of sources whose
 // sync failed so the caller can surface a stale-data warning in the UI.
 func (s *Server) syncEnabledSources(ctx context.Context) []string {
-	syncCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	syncCtx, cancel := context.WithTimeout(ctx, sourceSyncBudget)
 	defer cancel()
 
 	sources, err := s.store.ListSources(syncCtx)
