@@ -55,16 +55,11 @@ func (s *Service) SyncSource(ctx context.Context, sourceID string) error {
 	if err != nil {
 		return fmt.Errorf("create source request: %w", err)
 	}
-	if src.ETag != "" {
-		req.Header.Set("If-None-Match", src.ETag)
-	}
-	if src.LastModified != "" {
-		req.Header.Set("If-Modified-Since", src.LastModified)
-	}
-	// Ask upstream CDNs to revalidate against origin rather than serving a
-	// cached copy. Without this, raw.githubusercontent.com can serve stale
-	// JSON for several minutes after a push.
+	// Always request fresh data. Conditional (If-None-Match / If-Modified-Since)
+	// requests cause 304 responses when upstream CDNs (e.g. raw.githubusercontent.com)
+	// still serve a stale cached copy, which silently prevents catalog updates.
 	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Pragma", "no-cache")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -72,26 +67,6 @@ func (s *Service) SyncSource(ctx context.Context, sourceID string) error {
 		return fmt.Errorf("fetch source feed: %w", err)
 	}
 	defer resp.Body.Close()
-
-	etag := resp.Header.Get("ETag")
-	if etag == "" {
-		etag = src.ETag
-	}
-	lastModified := resp.Header.Get("Last-Modified")
-	if lastModified == "" {
-		lastModified = src.LastModified
-	}
-
-	if resp.StatusCode == http.StatusNotModified {
-		name := src.Name
-		if name == "" {
-			name = src.ID
-		}
-		if err := s.store.UpdateSourceAfterSync(ctx, sourceID, name, etag, lastModified, ""); err != nil {
-			return err
-		}
-		return nil
-	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
@@ -152,7 +127,7 @@ func (s *Service) SyncSource(ctx context.Context, sourceID string) error {
 		name = sourceID
 	}
 
-	if err := s.store.UpdateSourceAfterSync(ctx, sourceID, name, etag, lastModified, ""); err != nil {
+	if err := s.store.UpdateSourceAfterSync(ctx, sourceID, name, "", "", ""); err != nil {
 		return err
 	}
 
