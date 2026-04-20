@@ -690,30 +690,34 @@ func (s *Server) refreshPublishState(ctx context.Context, publish store.Publish)
 	return publish
 }
 
-// canDeployDirectly returns true if the catalog has (or can likely get) a
-// router token for one-click deploys. This is a fast, non-blocking check
-// used to decide whether to show "Publish" vs "Install" buttons.
-// It also respects the setup mode: if the user chose "manual", it returns false.
+// canDeployDirectly returns true if the catalog has (or can acquire) a
+// router token for one-click deploys. Used to decide whether to show
+// "Publish" vs "Install" buttons on page loads.
+//
+// Previously this only looked at the in-memory token cache populated
+// lazily by publish-time code, so after a container restart (or >30s
+// of idle) the cache was cold and the UI silently fell back to the
+// manual-install path even when the secrets app still had the token.
+// We now actually try to resolve the token via resolveRouterToken,
+// which uses the same cache but lazy-fetches from the secrets app on
+// miss. Token fetches from the bundled secrets app are cheap (a local
+// HTTP call inside the compute space), so doing this on every page
+// render is fine.
 func (s *Server) canDeployDirectly(ctx context.Context) bool {
 	mode, err := s.store.GetSetting(ctx, "setup_complete")
 	if err != nil {
 		log.Printf("canDeployDirectly: failed to read setup_complete: %v", err)
 		return false
 	}
-	if mode == "manual" {
-		return false
-	}
-	if mode == "" {
+	if mode == "manual" || mode == "" {
 		return false
 	}
 
-	if strings.TrimSpace(s.cfg.RouterToken) != "" {
-		return true
+	if _, err := s.resolveRouterToken(ctx); err != nil {
+		log.Printf("canDeployDirectly: no router token available: %v", err)
+		return false
 	}
-	s.tokenMu.Lock()
-	has := s.tokenVal != "" && time.Since(s.tokenTS) < 30*time.Second
-	s.tokenMu.Unlock()
-	return has
+	return true
 }
 
 func (s *Server) resolveRouterToken(ctx context.Context) (string, error) {
