@@ -72,6 +72,62 @@ func TestIntegrationScoreRoundTrip(t *testing.T) {
 	}
 }
 
+// TestListCatalogAppsOrderedByScore confirms that ListCatalogApps
+// returns higher-rated apps first, with alphabetical title as the
+// tiebreaker and unrated apps at the bottom.
+func TestListCatalogAppsOrderedByScore(t *testing.T) {
+	dir := t.TempDir()
+	store, err := Open(filepath.Join(dir, "catalog.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	if err := store.Init(ctx); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	if err := store.CreateSource(ctx, Source{
+		ID:      "s",
+		Name:    "S",
+		URL:     "https://example.invalid/s.json",
+		Enabled: true,
+	}); err != nil {
+		t.Fatalf("create source: %v", err)
+	}
+	if err := store.MarkSourceSynced(ctx, "s", "S"); err != nil {
+		t.Fatalf("mark synced: %v", err)
+	}
+
+	apps := []CatalogApp{
+		{SourceID: "s", AppID: "a1", Title: "A1", RepoURL: "https://example.invalid/a1", OpenhostIntegrationScore: 2},
+		{SourceID: "s", AppID: "a2", Title: "A2", RepoURL: "https://example.invalid/a2", OpenhostIntegrationScore: 5},
+		{SourceID: "s", AppID: "a3", Title: "A3", RepoURL: "https://example.invalid/a3", OpenhostIntegrationScore: 0},
+		{SourceID: "s", AppID: "a4", Title: "A4", RepoURL: "https://example.invalid/a4", OpenhostIntegrationScore: 5},
+	}
+	if err := store.ReplaceCatalogAppsForSource(ctx, "s", apps); err != nil {
+		t.Fatalf("replace apps: %v", err)
+	}
+
+	got, err := store.ListCatalogApps(ctx, AppListFilter{})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	wantOrder := []string{"a2", "a4", "a1", "a3"}
+	if len(got) != len(wantOrder) {
+		t.Fatalf("want %d apps, got %d", len(wantOrder), len(got))
+	}
+	for i, id := range wantOrder {
+		if got[i].AppID != id {
+			ids := make([]string, len(got))
+			for j, a := range got {
+				ids[j] = a.AppID
+			}
+			t.Fatalf("order mismatch at index %d: got %v, want %v", i, ids, wantOrder)
+		}
+	}
+}
+
 // TestIntegrationMigrationIdempotent checks that re-running Init
 // against an already-migrated database is a no-op rather than
 // erroring on the duplicate column ALTERs.

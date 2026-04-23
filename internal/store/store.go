@@ -414,7 +414,9 @@ func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]Ca
 		args = append(args, "%\""+filter.Tag+"\"%")
 	}
 
-	query += ` ORDER BY lower(ca.title), ca.app_id`
+	// Higher-integrated apps first; ties broken alphabetically by
+	// title. Unrated apps (score = 0) land at the bottom.
+	query += ` ORDER BY ca.openhost_integration_score DESC, lower(ca.title), ca.app_id`
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
