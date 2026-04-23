@@ -47,6 +47,7 @@
     <tr>
       <th>App</th>
       <th>Source</th>
+      <th title="OpenHost integration rating">Rating</th>
       <th>Tags</th>
       <th>Actions</th>
     </tr>
@@ -58,6 +59,9 @@
         <div style="color: #666; font-family: monospace; font-size: 0.85em;">{{.RepoURL}}{{if .RepoRef}}@{{.RepoRef}}{{end}}</div>
       </td>
       <td>{{.SourceName}}</td>
+      <td class="rating"{{if .Integration.Summary}} title="{{.Integration.Summary}}"{{end}}>
+        {{if .Integration.Level}}<span class="stars">{{stars .Integration.Level}}</span>{{else}}<span class="rating-none">-</span>{{end}}
+      </td>
       <td>{{if .Tags}}{{join .Tags ", "}}{{else}}-{{end}}</td>
       <td>
         <div style="display: flex; gap: 0.5em; align-items: center;">

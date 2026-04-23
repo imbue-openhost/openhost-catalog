@@ -20,14 +20,15 @@ type Store struct {
 }
 
 type Source struct {
-	ID         string
-	Name       string
-	URL        string
-	Enabled    bool
-	LastSyncAt string
-	LastError  string
-	CreatedAt  string
-	UpdatedAt  string
+	ID                string
+	Name              string
+	URL               string
+	Enabled           bool
+	LastSyncAt        string
+	LastError         string
+	IntegrationsVocab map[string]IntegrationVocabEntry
+	CreatedAt         string
+	UpdatedAt         string
 }
 
 type CatalogApp struct {
@@ -43,7 +44,29 @@ type CatalogApp struct {
 	Categories  []string
 	WebsiteURL  string
 	DocsURL     string
+	Integration Integration
 	UpdatedAt   string
+}
+
+// Integration captures the source-supplied OpenHost integration
+// rating for an app. Level is in [1,5] (0 means "source did not
+// supply a rating"; treat as level 1 in the UI). Has, Missing and
+// NotApplicable are lists of integration-vocab keys defined in the
+// source's top-level Integrations vocabulary.
+type Integration struct {
+	Level          int
+	Summary        string
+	Has            []string
+	Missing        []string
+	NotApplicable  []string
+}
+
+// IntegrationVocabEntry is one entry in a source's integration
+// vocabulary. The key (e.g. "zone_owner_auto_login") is the map
+// key in the parent structure.
+type IntegrationVocabEntry struct {
+	Title       string
+	Description string
 }
 
 type Publish struct {
@@ -170,6 +193,21 @@ func (s *Store) Init(ctx context.Context) error {
 			return fmt.Errorf("initialize schema: %w", err)
 		}
 	}
+
+	// Idempotent column additions for the integration rating feature.
+	// SQLite does not have "ADD COLUMN IF NOT EXISTS"; swallow the
+	// "duplicate column name" error on pre-existing dbs.
+	addColumns := []string{
+		`ALTER TABLE catalog_apps ADD COLUMN integration_json TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE sources ADD COLUMN integrations_vocab_json TEXT NOT NULL DEFAULT '{}'`,
+	}
+	for _, stmt := range addColumns {
+		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
+			if !strings.Contains(err.Error(), "duplicate column name") {
+				return fmt.Errorf("add integration columns: %w", err)
+			}
+		}
+	}
 	return nil
 }
 
@@ -196,7 +234,7 @@ func (s *Store) CreateSource(ctx context.Context, src Source) error {
 func (s *Store) GetSource(ctx context.Context, id string) (Source, error) {
 	row := s.db.QueryRowContext(
 		ctx,
-		`SELECT id, name, url, enabled, last_sync_at, last_error, created_at, updated_at
+		`SELECT id, name, url, enabled, last_sync_at, last_error, integrations_vocab_json, created_at, updated_at
 		 FROM sources WHERE id = ?`,
 		id,
 	)
@@ -206,7 +244,7 @@ func (s *Store) GetSource(ctx context.Context, id string) (Source, error) {
 func (s *Store) ListSources(ctx context.Context) ([]Source, error) {
 	rows, err := s.db.QueryContext(
 		ctx,
-		`SELECT id, name, url, enabled, last_sync_at, last_error, created_at, updated_at
+		`SELECT id, name, url, enabled, last_sync_at, last_error, integrations_vocab_json, created_at, updated_at
 		 FROM sources ORDER BY lower(name), id`,
 	)
 	if err != nil {
@@ -263,8 +301,8 @@ func (s *Store) ReplaceCatalogAppsForSource(ctx context.Context, sourceID string
 
 	insertStmt := `INSERT INTO catalog_apps
 	(source_id, app_id, title, description, repo_url, repo_ref, icon_url,
-	 tags_json, categories_json, website_url, docs_url, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	 tags_json, categories_json, website_url, docs_url, integration_json, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	now := nowString()
 	for _, app := range apps {
@@ -275,6 +313,10 @@ func (s *Store) ReplaceCatalogAppsForSource(ctx context.Context, sourceID string
 		categoriesJSON, err := json.Marshal(app.Categories)
 		if err != nil {
 			return fmt.Errorf("marshal categories for %s/%s: %w", app.SourceID, app.AppID, err)
+		}
+		integrationJSON, err := json.Marshal(app.Integration)
+		if err != nil {
+			return fmt.Errorf("marshal integration for %s/%s: %w", app.SourceID, app.AppID, err)
 		}
 
 		if _, err := tx.ExecContext(
@@ -291,6 +333,7 @@ func (s *Store) ReplaceCatalogAppsForSource(ctx context.Context, sourceID string
 			string(categoriesJSON),
 			app.WebsiteURL,
 			app.DocsURL,
+			string(integrationJSON),
 			now,
 		); err != nil {
 			return fmt.Errorf("insert catalog app %s/%s: %w", sourceID, app.AppID, err)
@@ -303,17 +346,29 @@ func (s *Store) ReplaceCatalogAppsForSource(ctx context.Context, sourceID string
 	return nil
 }
 
-// MarkSourceSynced records a successful sync: updates the source name,
-// clears any prior error, and stamps last_sync_at.
-func (s *Store) MarkSourceSynced(ctx context.Context, sourceID string, name string) error {
+// MarkSourceSynced records a successful sync: updates the source name
+// and integration vocabulary, clears any prior error, and stamps
+// last_sync_at. Pass a nil vocab to preserve whatever is currently
+// stored (which is what pre-integration-rating feeds produced).
+func (s *Store) MarkSourceSynced(ctx context.Context, sourceID string, name string, vocab map[string]IntegrationVocabEntry) error {
 	now := nowString()
+	vocabJSON := "{}"
+	if vocab != nil {
+		raw, err := json.Marshal(vocab)
+		if err != nil {
+			return fmt.Errorf("marshal integrations vocab: %w", err)
+		}
+		vocabJSON = string(raw)
+	}
 	_, err := s.db.ExecContext(
 		ctx,
 		`UPDATE sources
-		 SET name = ?, last_sync_at = ?, last_error = '', updated_at = ?
+		 SET name = ?, last_sync_at = ?, last_error = '',
+		     integrations_vocab_json = ?, updated_at = ?
 		 WHERE id = ?`,
 		name,
 		now,
+		vocabJSON,
 		now,
 		sourceID,
 	)
@@ -353,6 +408,7 @@ func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]Ca
 		ca.categories_json,
 		ca.website_url,
 		ca.docs_url,
+		ca.integration_json,
 		ca.updated_at
 	FROM catalog_apps ca
 	JOIN sources s ON s.id = ca.source_id
@@ -390,7 +446,7 @@ func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]Ca
 	out := make([]CatalogApp, 0)
 	for rows.Next() {
 		var app CatalogApp
-		var tagsJSON, categoriesJSON string
+		var tagsJSON, categoriesJSON, integrationJSON string
 		if err := rows.Scan(
 			&app.SourceID,
 			&app.SourceName,
@@ -404,12 +460,14 @@ func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]Ca
 			&categoriesJSON,
 			&app.WebsiteURL,
 			&app.DocsURL,
+			&integrationJSON,
 			&app.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan catalog app row: %w", err)
 		}
 		app.Tags = decodeJSONList(tagsJSON)
 		app.Categories = decodeJSONList(categoriesJSON)
+		app.Integration = decodeIntegration(integrationJSON)
 		out = append(out, app)
 	}
 	if err := rows.Err(); err != nil {
@@ -435,6 +493,7 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 			ca.categories_json,
 			ca.website_url,
 			ca.docs_url,
+			ca.integration_json,
 			ca.updated_at
 		 FROM catalog_apps ca
 		 JOIN sources s ON s.id = ca.source_id
@@ -444,7 +503,7 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 	)
 
 	var app CatalogApp
-	var tagsJSON, categoriesJSON string
+	var tagsJSON, categoriesJSON, integrationJSON string
 	if err := row.Scan(
 		&app.SourceID,
 		&app.SourceName,
@@ -458,6 +517,7 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 		&categoriesJSON,
 		&app.WebsiteURL,
 		&app.DocsURL,
+		&integrationJSON,
 		&app.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -467,7 +527,22 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 	}
 	app.Tags = decodeJSONList(tagsJSON)
 	app.Categories = decodeJSONList(categoriesJSON)
+	app.Integration = decodeIntegration(integrationJSON)
 	return app, nil
+}
+
+// decodeIntegration parses the on-disk integration JSON into an
+// Integration struct, returning a zero value on malformed JSON so
+// missing/legacy rows render as unrated rather than crashing.
+func decodeIntegration(raw string) Integration {
+	if raw == "" {
+		return Integration{}
+	}
+	var integ Integration
+	if err := json.Unmarshal([]byte(raw), &integ); err != nil {
+		return Integration{}
+	}
+	return integ
 }
 
 func (s *Store) CreatePublish(ctx context.Context, publish Publish) error {
@@ -590,6 +665,7 @@ func scanSource(row interface {
 }) (Source, error) {
 	var src Source
 	var enabled int
+	var vocabJSON string
 	if err := row.Scan(
 		&src.ID,
 		&src.Name,
@@ -597,13 +673,26 @@ func scanSource(row interface {
 		&enabled,
 		&src.LastSyncAt,
 		&src.LastError,
+		&vocabJSON,
 		&src.CreatedAt,
 		&src.UpdatedAt,
 	); err != nil {
 		return Source{}, err
 	}
 	src.Enabled = enabled == 1
+	src.IntegrationsVocab = decodeIntegrationsVocab(vocabJSON)
 	return src, nil
+}
+
+func decodeIntegrationsVocab(raw string) map[string]IntegrationVocabEntry {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var out map[string]IntegrationVocabEntry
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return nil
+	}
+	return out
 }
 
 func decodeJSONList(raw string) []string {

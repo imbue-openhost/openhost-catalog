@@ -19,3 +19,19 @@ nav .spacer { flex: 1; }
 .error-inline { background: #fff0f0; border: 1px solid #fcc; padding: 0.5em; margin-top: 0.3em; font-size: 0.85em; white-space: pre-wrap; word-break: break-word; max-height: 6em; overflow-y: auto; }
 .log-output, .logs { background: #1e1e1e; color: #d4d4d4; padding: 1em; font-size: 0.85em; overflow-x: auto; max-height: 30em; overflow-y: auto; border-radius: 4px; min-height: 180px; font-family: monospace; }
 .hidden { display: none; }
+
+/* Integration rating ---------------------------------------------------- */
+
+.stars { color: #d48806; font-family: serif; letter-spacing: 1px; font-size: 1.05em; white-space: nowrap; }
+.rating { text-align: center; white-space: nowrap; }
+.rating-none { color: #aaa; }
+.rating-num { color: #666; font-weight: normal; font-size: 0.9em; margin-left: 0.3em; }
+
+.integration-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1em; margin: 0.5em 0 1.5em; }
+.integration-grid h4 { margin: 0 0 0.4em; font-size: 1em; }
+.integration-list { list-style: none; padding: 0; margin: 0; }
+.integration-list li { padding: 0.4em 0.6em; border-left: 3px solid #ccc; background: #f8f8f8; margin-bottom: 0.35em; border-radius: 0 3px 3px 0; }
+.integration-list.has li { border-left-color: #2e7d32; }
+.integration-list.missing li { border-left-color: #c62828; }
+.integration-list.na li { border-left-color: #999; opacity: 0.7; }
+.integration-desc { color: #666; font-size: 0.88em; margin-top: 0.2em; }
