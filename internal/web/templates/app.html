@@ -27,6 +27,55 @@
     <tr><th>Docs</th><td>{{if .App.DocsURL}}<a href="{{.App.DocsURL}}" target="_blank" rel="noopener">{{.App.DocsURL}}</a>{{else}}-{{end}}</td></tr>
   </table>
 
+  {{if .App.Integration.Level}}
+  <h3 style="margin-top: 2em;">OpenHost integration <span class="stars">{{stars .App.Integration.Level}}</span> <span class="rating-num">{{.App.Integration.Level}}/5</span></h3>
+  {{if .App.Integration.Summary}}<p style="color: #444;">{{.App.Integration.Summary}}</p>{{end}}
+  <div class="integration-grid">
+    {{if .App.Integration.Has}}
+    <div>
+      <h4>Has</h4>
+      <ul class="integration-list has">
+        {{range .App.Integration.Has}}
+        <li>
+          <strong>{{integrationTitle $.IntegrationsVocab .}}</strong>
+          {{$desc := integrationDescription $.IntegrationsVocab .}}
+          {{if $desc}}<div class="integration-desc">{{$desc}}</div>{{end}}
+        </li>
+        {{end}}
+      </ul>
+    </div>
+    {{end}}
+    {{if .App.Integration.Missing}}
+    <div>
+      <h4>Missing</h4>
+      <ul class="integration-list missing">
+        {{range .App.Integration.Missing}}
+        <li>
+          <strong>{{integrationTitle $.IntegrationsVocab .}}</strong>
+          {{$desc := integrationDescription $.IntegrationsVocab .}}
+          {{if $desc}}<div class="integration-desc">{{$desc}}</div>{{end}}
+        </li>
+        {{end}}
+      </ul>
+    </div>
+    {{end}}
+    {{if .App.Integration.NotApplicable}}
+    <div>
+      <h4>Not applicable</h4>
+      <ul class="integration-list na">
+        {{range .App.Integration.NotApplicable}}
+        <li>
+          <strong>{{integrationTitle $.IntegrationsVocab .}}</strong>
+          {{$desc := integrationDescription $.IntegrationsVocab .}}
+          {{if $desc}}<div class="integration-desc">{{$desc}}</div>{{end}}
+        </li>
+        {{end}}
+      </ul>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+
   <h2 style="margin-top: 2em;">Install</h2>
   {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
 

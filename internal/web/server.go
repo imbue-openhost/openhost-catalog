@@ -63,11 +63,12 @@ type indexPageData struct {
 }
 
 type appPageData struct {
-	BasePath      string
-	App           store.CatalogApp
-	Error         string
-	CanDeploy     bool
-	RouterBaseURL string
+	BasePath          string
+	App               store.CatalogApp
+	IntegrationsVocab map[string]store.IntegrationVocabEntry
+	Error             string
+	CanDeploy         bool
+	RouterBaseURL     string
 }
 
 type sourcesPageData struct {
@@ -113,6 +114,19 @@ func NewServer(cfg config.Config, st *store.Store) (*Server, error) {
 		"withBase":    withBase,
 		"join":        strings.Join,
 		"statusClass": statusClass,
+		"stars":       renderStars,
+		"integrationTitle": func(vocab map[string]store.IntegrationVocabEntry, key string) string {
+			if v, ok := vocab[key]; ok && v.Title != "" {
+				return v.Title
+			}
+			return key
+		},
+		"integrationDescription": func(vocab map[string]store.IntegrationVocabEntry, key string) string {
+			if v, ok := vocab[key]; ok {
+				return v.Description
+			}
+			return ""
+		},
 	}).ParseFS(assets, "templates/*.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
@@ -430,12 +444,26 @@ func (s *Server) handleAppDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	vocab := s.loadSourceVocab(r.Context(), app.SourceID)
+
 	s.render(w, http.StatusOK, "app.html", appPageData{
-		BasePath:      s.basePathForRequest(r),
-		App:           app,
-		CanDeploy:     s.canDeployDirectly(r.Context()),
-		RouterBaseURL: s.routerBaseURL(r),
+		BasePath:          s.basePathForRequest(r),
+		App:               app,
+		IntegrationsVocab: vocab,
+		CanDeploy:         s.canDeployDirectly(r.Context()),
+		RouterBaseURL:     s.routerBaseURL(r),
 	})
+}
+
+// loadSourceVocab fetches the integration vocabulary stored for
+// the given source. Returns nil on any error, and the template
+// lookup helpers tolerate nil by falling back to the raw key.
+func (s *Server) loadSourceVocab(ctx context.Context, sourceID string) map[string]store.IntegrationVocabEntry {
+	src, err := s.store.GetSource(ctx, sourceID)
+	if err != nil {
+		return nil
+	}
+	return src.IntegrationsVocab
 }
 
 func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
@@ -975,6 +1003,19 @@ func (s *Server) renderError(w http.ResponseWriter, status int, message string, 
 		return
 	}
 	_, _ = io.WriteString(w, message)
+}
+
+// renderStars returns a 5-character string combining filled and
+// hollow stars. level is clamped into [0, 5]; level 0 renders as
+// all-hollow so the table column width is stable for unrated apps.
+func renderStars(level int) string {
+	if level < 0 {
+		level = 0
+	}
+	if level > 5 {
+		level = 5
+	}
+	return strings.Repeat("\u2605", level) + strings.Repeat("\u2606", 5-level)
 }
 
 func statusClass(status string) string {
