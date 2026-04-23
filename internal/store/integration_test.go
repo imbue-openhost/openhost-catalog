@@ -3,14 +3,13 @@ package store
 import (
 	"context"
 	"path/filepath"
-	"reflect"
 	"testing"
 )
 
-// TestIntegrationRoundTrip verifies that an app's integration block
-// survives a write/read cycle and that the source's integrations
-// vocabulary is stored alongside the sync record.
-func TestIntegrationRoundTrip(t *testing.T) {
+// TestIntegrationScoreRoundTrip verifies that the
+// openhost_integration_score column stores and reads back correctly,
+// and that apps without a score round-trip as zero.
+func TestIntegrationScoreRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	store, err := Open(filepath.Join(dir, "catalog.db"))
 	if err != nil {
@@ -31,58 +30,45 @@ func TestIntegrationRoundTrip(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create source: %v", err)
 	}
-
-	vocab := map[string]IntegrationVocabEntry{
-		"zone_owner_auto_login": {
-			Title:       "Zone-owner auto-login",
-			Description: "Owner's zone_auth cookie is verified.",
-		},
-		"respects_data_dirs": {
-			Title:       "Data directories",
-			Description: "App uses OPENHOST_APP_DATA_DIR.",
-		},
-	}
-
-	if err := store.MarkSourceSynced(ctx, "official", "OpenHost Official", vocab); err != nil {
+	if err := store.MarkSourceSynced(ctx, "official", "OpenHost Official"); err != nil {
 		t.Fatalf("mark synced: %v", err)
 	}
 
-	src, err := store.GetSource(ctx, "official")
-	if err != nil {
-		t.Fatalf("get source: %v", err)
-	}
-	if !reflect.DeepEqual(src.IntegrationsVocab, vocab) {
-		t.Errorf("vocab round-trip mismatch: got %+v want %+v", src.IntegrationsVocab, vocab)
-	}
-
-	apps := []CatalogApp{{
-		SourceID:    "official",
-		AppID:       "searxng",
-		Title:       "SearXNG",
-		Description: "Privacy-respecting metasearch",
-		RepoURL:     "https://example.invalid/searxng",
-		Integration: Integration{
-			Level:   5,
-			Summary: "Stateless public search.",
-			Has:     []string{"respects_data_dirs"},
-			NotApplicable: []string{
-				"zone_owner_auto_login",
-			},
+	apps := []CatalogApp{
+		{
+			SourceID:                 "official",
+			AppID:                    "searxng",
+			Title:                    "SearXNG",
+			Description:              "Privacy-respecting metasearch",
+			RepoURL:                  "https://example.invalid/searxng",
+			OpenhostIntegrationScore: 5,
 		},
-	}}
-
+		{
+			SourceID:    "official",
+			AppID:       "unrated",
+			Title:       "Unrated",
+			Description: "No integration score set",
+			RepoURL:     "https://example.invalid/unrated",
+		},
+	}
 	if err := store.ReplaceCatalogAppsForSource(ctx, "official", apps); err != nil {
 		t.Fatalf("replace apps: %v", err)
 	}
 
-	got, err := store.GetCatalogApp(ctx, "official", "searxng")
+	got5, err := store.GetCatalogApp(ctx, "official", "searxng")
 	if err != nil {
-		t.Fatalf("get app: %v", err)
+		t.Fatalf("get rated app: %v", err)
 	}
-	want := apps[0].Integration
-	want.Missing = nil // Integration.Missing stored as nil round-trips to nil
-	if !reflect.DeepEqual(got.Integration, want) {
-		t.Errorf("integration round-trip mismatch:\n got: %+v\n want: %+v", got.Integration, want)
+	if got5.OpenhostIntegrationScore != 5 {
+		t.Errorf("rated app: got score %d, want 5", got5.OpenhostIntegrationScore)
+	}
+
+	got0, err := store.GetCatalogApp(ctx, "official", "unrated")
+	if err != nil {
+		t.Fatalf("get unrated app: %v", err)
+	}
+	if got0.OpenhostIntegrationScore != 0 {
+		t.Errorf("unrated app: got score %d, want 0", got0.OpenhostIntegrationScore)
 	}
 }
 

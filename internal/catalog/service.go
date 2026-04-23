@@ -22,39 +22,25 @@ type Service struct {
 }
 
 type sourceFeed struct {
-	Schema       string                       `json:"schema"`
-	SourceID     string                       `json:"source_id"`
-	SourceName   string                       `json:"source_name"`
-	Generated    string                       `json:"generated_at"`
-	Apps         []sourceFeedApp              `json:"apps"`
-	Integrations map[string]sourceFeedVocab   `json:"integrations"`
+	Schema     string          `json:"schema"`
+	SourceID   string          `json:"source_id"`
+	SourceName string          `json:"source_name"`
+	Generated  string          `json:"generated_at"`
+	Apps       []sourceFeedApp `json:"apps"`
 }
 
 type sourceFeedApp struct {
-	Name        string                  `json:"name"`
-	Title       string                  `json:"title"`
-	Description string                  `json:"description"`
-	RepoURL     string                  `json:"repo_url"`
-	RepoRef     string                  `json:"repo_ref"`
-	IconURL     string                  `json:"icon_url"`
-	Tags        []string                `json:"tags"`
-	Categories  []string                `json:"categories"`
-	WebsiteURL  string                  `json:"website_url"`
-	DocsURL     string                  `json:"docs_url"`
-	Integration *sourceFeedIntegration  `json:"integration,omitempty"`
-}
-
-type sourceFeedIntegration struct {
-	Level         int      `json:"level"`
-	Summary       string   `json:"summary"`
-	Has           []string `json:"has"`
-	Missing       []string `json:"missing"`
-	NotApplicable []string `json:"not_applicable"`
-}
-
-type sourceFeedVocab struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
+	Name                     string   `json:"name"`
+	Title                    string   `json:"title"`
+	Description              string   `json:"description"`
+	RepoURL                  string   `json:"repo_url"`
+	RepoRef                  string   `json:"repo_ref"`
+	IconURL                  string   `json:"icon_url"`
+	Tags                     []string `json:"tags"`
+	Categories               []string `json:"categories"`
+	WebsiteURL               string   `json:"website_url"`
+	DocsURL                  string   `json:"docs_url"`
+	OpenhostIntegrationScore int      `json:"openhost_integration_score"`
 }
 
 func NewService(st *store.Store, client *http.Client) *Service {
@@ -141,15 +127,7 @@ func (s *Service) SyncSource(ctx context.Context, sourceID string) error {
 		name = sourceID
 	}
 
-	vocab := make(map[string]store.IntegrationVocabEntry, len(feed.Integrations))
-	for key, entry := range feed.Integrations {
-		vocab[key] = store.IntegrationVocabEntry{
-			Title:       strings.TrimSpace(entry.Title),
-			Description: strings.TrimSpace(entry.Description),
-		}
-	}
-
-	if err := s.store.MarkSourceSynced(ctx, sourceID, name, vocab); err != nil {
+	if err := s.store.MarkSourceSynced(ctx, sourceID, name); err != nil {
 		return err
 	}
 
@@ -179,46 +157,30 @@ func normalizeFeedApp(sourceID string, in sourceFeedApp) (store.CatalogApp, bool
 		title = appID
 	}
 
+	score := in.OpenhostIntegrationScore
+	if score < 0 {
+		score = 0
+	}
+	if score > 5 {
+		score = 5
+	}
+
 	out := store.CatalogApp{
-		SourceID:    sourceID,
-		AppID:       appID,
-		Title:       title,
-		Description: strings.TrimSpace(in.Description),
-		RepoURL:     repoURL,
-		RepoRef:     strings.TrimSpace(in.RepoRef),
-		IconURL:     strings.TrimSpace(in.IconURL),
-		Tags:        compactList(in.Tags),
-		Categories:  compactList(in.Categories),
-		WebsiteURL:  strings.TrimSpace(in.WebsiteURL),
-		DocsURL:     strings.TrimSpace(in.DocsURL),
-		Integration: normalizeFeedIntegration(in.Integration),
+		SourceID:                 sourceID,
+		AppID:                    appID,
+		Title:                    title,
+		Description:              strings.TrimSpace(in.Description),
+		RepoURL:                  repoURL,
+		RepoRef:                  strings.TrimSpace(in.RepoRef),
+		IconURL:                  strings.TrimSpace(in.IconURL),
+		Tags:                     compactList(in.Tags),
+		Categories:               compactList(in.Categories),
+		WebsiteURL:               strings.TrimSpace(in.WebsiteURL),
+		DocsURL:                  strings.TrimSpace(in.DocsURL),
+		OpenhostIntegrationScore: score,
 	}
 
 	return out, true
-}
-
-// normalizeFeedIntegration copies the feed's integration block into
-// the store shape, clamping the level into the 1-5 window and
-// treating "no integration block" as level-0 (which the UI renders
-// as "unrated" rather than a specific star count).
-func normalizeFeedIntegration(in *sourceFeedIntegration) store.Integration {
-	if in == nil {
-		return store.Integration{}
-	}
-	level := in.Level
-	if level < 0 {
-		level = 0
-	}
-	if level > 5 {
-		level = 5
-	}
-	return store.Integration{
-		Level:         level,
-		Summary:       strings.TrimSpace(in.Summary),
-		Has:           compactList(in.Has),
-		Missing:       compactList(in.Missing),
-		NotApplicable: compactList(in.NotApplicable),
-	}
 }
 
 func compactList(items []string) []string {
