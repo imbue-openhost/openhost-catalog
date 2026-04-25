@@ -128,6 +128,84 @@ func TestListCatalogAppsOrderedByScore(t *testing.T) {
 	}
 }
 
+// TestAiGeneratedRoundTrip verifies the ai_generated boolean column
+// stores and reads back correctly via both ListCatalogApps and
+// GetCatalogApp, and defaults to false for apps that do not set it.
+func TestAiGeneratedRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	store, err := Open(filepath.Join(dir, "catalog.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	if err := store.Init(ctx); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	if err := store.CreateSource(ctx, Source{
+		ID:      "official",
+		Name:    "OpenHost Official",
+		URL:     "https://example.invalid/catalog.json",
+		Enabled: true,
+	}); err != nil {
+		t.Fatalf("create source: %v", err)
+	}
+	if err := store.MarkSourceSynced(ctx, "official", "OpenHost Official"); err != nil {
+		t.Fatalf("mark synced: %v", err)
+	}
+
+	apps := []CatalogApp{
+		{
+			SourceID:    "official",
+			AppID:       "ai-app",
+			Title:       "AI Packaged",
+			RepoURL:     "https://example.invalid/ai-app",
+			AiGenerated: true,
+		},
+		{
+			SourceID: "official",
+			AppID:    "human-app",
+			Title:    "Human Packaged",
+			RepoURL:  "https://example.invalid/human-app",
+		},
+	}
+	if err := store.ReplaceCatalogAppsForSource(ctx, "official", apps); err != nil {
+		t.Fatalf("replace apps: %v", err)
+	}
+
+	gotAI, err := store.GetCatalogApp(ctx, "official", "ai-app")
+	if err != nil {
+		t.Fatalf("get ai-app: %v", err)
+	}
+	if !gotAI.AiGenerated {
+		t.Errorf("ai-app: AiGenerated false, want true")
+	}
+
+	gotHuman, err := store.GetCatalogApp(ctx, "official", "human-app")
+	if err != nil {
+		t.Fatalf("get human-app: %v", err)
+	}
+	if gotHuman.AiGenerated {
+		t.Errorf("human-app: AiGenerated true, want false (default)")
+	}
+
+	listed, err := store.ListCatalogApps(ctx, AppListFilter{})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	byID := map[string]bool{}
+	for _, a := range listed {
+		byID[a.AppID] = a.AiGenerated
+	}
+	if !byID["ai-app"] {
+		t.Errorf("list: ai-app AiGenerated false, want true")
+	}
+	if byID["human-app"] {
+		t.Errorf("list: human-app AiGenerated true, want false")
+	}
+}
+
 // TestIntegrationMigrationIdempotent checks that re-running Init
 // against an already-migrated database is a no-op rather than
 // erroring on the duplicate column ALTERs.

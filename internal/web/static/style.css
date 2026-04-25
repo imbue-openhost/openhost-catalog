@@ -25,3 +25,20 @@ nav .spacer { flex: 1; }
 .stars { color: #d48806; font-family: serif; letter-spacing: 1px; font-size: 1.05em; white-space: nowrap; }
 .rating { text-align: center; white-space: nowrap; }
 .rating-num { color: #666; font-weight: normal; font-size: 0.9em; margin-left: 0.3em; }
+
+/* AI-generated packaging disclosure ------------------------------------- */
+
+.ai-badge {
+  display: inline-block;
+  margin-left: 0.4em;
+  padding: 0.05em 0.5em;
+  border: 1px solid #b58b00;
+  border-radius: 999px;
+  background: #fff8e1;
+  color: #7a5a00;
+  font-size: 0.75em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+  white-space: nowrap;
+}

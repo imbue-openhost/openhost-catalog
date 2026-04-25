@@ -22,6 +22,7 @@
     <tr><th>Source</th><td>{{.App.SourceName}}</td></tr>
     <tr><th>Repository</th><td style="font-family: monospace; word-break: break-word;">{{.App.RepoURL}}{{if .App.RepoRef}}@{{.App.RepoRef}}{{end}}</td></tr>
     <tr><th>OpenHost integration</th><td>{{if .App.OpenhostIntegrationScore}}<span class="stars">{{stars .App.OpenhostIntegrationScore}}</span> <span class="rating-num">{{.App.OpenhostIntegrationScore}}/5</span>{{else}}-{{end}}</td></tr>
+    <tr><th title="Self-reported by the source. Refers only to the packaging code in this repo, not the upstream application's source.">AI-generated packaging</th><td>{{if .App.AiGenerated}}<span class="ai-badge" title="The source self-reports that this app's packaging was produced primarily with AI assistance.">AI-generated</span>{{else}}No{{end}}</td></tr>
     <tr><th>Tags</th><td>{{if .App.Tags}}{{join .App.Tags ", "}}{{else}}-{{end}}</td></tr>
     <tr><th>Categories</th><td>{{if .App.Categories}}{{join .App.Categories ", "}}{{else}}-{{end}}</td></tr>
     <tr><th>Website</th><td>{{if .App.WebsiteURL}}<a href="{{.App.WebsiteURL}}" target="_blank" rel="noopener">{{.App.WebsiteURL}}</a>{{else}}-{{end}}</td></tr>
