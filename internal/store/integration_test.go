@@ -128,10 +128,11 @@ func TestListCatalogAppsOrderedByScore(t *testing.T) {
 	}
 }
 
-// TestAiGeneratedRoundTrip verifies the ai_generated boolean column
-// stores and reads back correctly via both ListCatalogApps and
-// GetCatalogApp, and defaults to false for apps that do not set it.
-func TestAiGeneratedRoundTrip(t *testing.T) {
+// TestAiGeneratedFlagsRoundTrip verifies that the two independent
+// AI-generated provenance flags (packaging vs. application) round-trip
+// through the store, that they can be set independently, and that
+// they default to false for apps that do not set them.
+func TestAiGeneratedFlagsRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	store, err := Open(filepath.Join(dir, "catalog.db"))
 	if err != nil {
@@ -155,54 +156,76 @@ func TestAiGeneratedRoundTrip(t *testing.T) {
 		t.Fatalf("mark synced: %v", err)
 	}
 
+	// All four combinations of the two booleans, to confirm they are
+	// stored independently rather than collapsed into a single bit.
 	apps := []CatalogApp{
 		{
-			SourceID:    "official",
-			AppID:       "ai-app",
-			Title:       "AI Packaged",
-			RepoURL:     "https://example.invalid/ai-app",
-			AiGenerated: true,
+			SourceID:               "official",
+			AppID:                  "ai-pkg-only",
+			Title:                  "AI Packaging Only",
+			RepoURL:                "https://example.invalid/ai-pkg",
+			AiGeneratedPackaging:   true,
+			AiGeneratedApplication: false,
+		},
+		{
+			SourceID:               "official",
+			AppID:                  "ai-app-only",
+			Title:                  "AI Application Only",
+			RepoURL:                "https://example.invalid/ai-app",
+			AiGeneratedPackaging:   false,
+			AiGeneratedApplication: true,
+		},
+		{
+			SourceID:               "official",
+			AppID:                  "ai-both",
+			Title:                  "AI Both",
+			RepoURL:                "https://example.invalid/ai-both",
+			AiGeneratedPackaging:   true,
+			AiGeneratedApplication: true,
 		},
 		{
 			SourceID: "official",
-			AppID:    "human-app",
-			Title:    "Human Packaged",
-			RepoURL:  "https://example.invalid/human-app",
+			AppID:    "ai-neither",
+			Title:    "AI Neither",
+			RepoURL:  "https://example.invalid/ai-neither",
 		},
 	}
 	if err := store.ReplaceCatalogAppsForSource(ctx, "official", apps); err != nil {
 		t.Fatalf("replace apps: %v", err)
 	}
 
-	gotAI, err := store.GetCatalogApp(ctx, "official", "ai-app")
-	if err != nil {
-		t.Fatalf("get ai-app: %v", err)
-	}
-	if !gotAI.AiGenerated {
-		t.Errorf("ai-app: AiGenerated false, want true")
+	want := map[string][2]bool{
+		"ai-pkg-only": {true, false},
+		"ai-app-only": {false, true},
+		"ai-both":     {true, true},
+		"ai-neither":  {false, false},
 	}
 
-	gotHuman, err := store.GetCatalogApp(ctx, "official", "human-app")
-	if err != nil {
-		t.Fatalf("get human-app: %v", err)
-	}
-	if gotHuman.AiGenerated {
-		t.Errorf("human-app: AiGenerated true, want false (default)")
+	for id, expected := range want {
+		got, err := store.GetCatalogApp(ctx, "official", id)
+		if err != nil {
+			t.Fatalf("get %s: %v", id, err)
+		}
+		if got.AiGeneratedPackaging != expected[0] {
+			t.Errorf("%s: AiGeneratedPackaging=%v, want %v", id, got.AiGeneratedPackaging, expected[0])
+		}
+		if got.AiGeneratedApplication != expected[1] {
+			t.Errorf("%s: AiGeneratedApplication=%v, want %v", id, got.AiGeneratedApplication, expected[1])
+		}
 	}
 
 	listed, err := store.ListCatalogApps(ctx, AppListFilter{})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	byID := map[string]bool{}
+	byID := map[string][2]bool{}
 	for _, a := range listed {
-		byID[a.AppID] = a.AiGenerated
+		byID[a.AppID] = [2]bool{a.AiGeneratedPackaging, a.AiGeneratedApplication}
 	}
-	if !byID["ai-app"] {
-		t.Errorf("list: ai-app AiGenerated false, want true")
-	}
-	if byID["human-app"] {
-		t.Errorf("list: human-app AiGenerated true, want false")
+	for id, expected := range want {
+		if byID[id] != expected {
+			t.Errorf("list: %s = %v, want %v", id, byID[id], expected)
+		}
 	}
 }
 

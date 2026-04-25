@@ -26,19 +26,29 @@ nav .spacer { flex: 1; }
 .rating { text-align: center; white-space: nowrap; }
 .rating-num { color: #666; font-weight: normal; font-size: 0.9em; margin-left: 0.3em; }
 
-/* AI-generated packaging disclosure ------------------------------------- */
+/* AI-generated provenance disclosures ----------------------------------- */
 
 .ai-badge {
   display: inline-block;
   margin-left: 0.4em;
   padding: 0.05em 0.5em;
-  border: 1px solid #b58b00;
   border-radius: 999px;
-  background: #fff8e1;
-  color: #7a5a00;
   font-size: 0.75em;
   font-weight: 600;
   letter-spacing: 0.02em;
   vertical-align: middle;
   white-space: nowrap;
+  border: 1px solid transparent;
+}
+/* Packaging: amber. Refers to the Dockerfile / manifests / glue. */
+.ai-badge-packaging {
+  border-color: #b58b00;
+  background: #fff8e1;
+  color: #7a5a00;
+}
+/* Application: violet. Refers to the upstream app's own source. */
+.ai-badge-application {
+  border-color: #6d28d9;
+  background: #f3e8ff;
+  color: #4c1d95;
 }

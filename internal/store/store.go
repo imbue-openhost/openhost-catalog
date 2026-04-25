@@ -43,9 +43,16 @@ type CatalogApp struct {
 	Categories               []string
 	WebsiteURL               string
 	DocsURL                  string
-	OpenhostIntegrationScore int  // 1-5 when supplied, 0 means unrated
-	AiGenerated              bool // self-reported by the source: packaging produced primarily with AI assistance
-	UpdatedAt                string
+	OpenhostIntegrationScore int // 1-5 when supplied, 0 means unrated
+	// AiGeneratedPackaging is self-reported by the source: the
+	// packaging code in this repo (Dockerfile, manifests, glue
+	// scripts) was primarily produced with AI assistance.
+	AiGeneratedPackaging bool
+	// AiGeneratedApplication is self-reported by the source: the
+	// upstream application's own source code was primarily produced
+	// with AI assistance. Independent of AiGeneratedPackaging.
+	AiGeneratedApplication bool
+	UpdatedAt              string
 }
 
 type Publish struct {
@@ -180,7 +187,8 @@ func (s *Store) Init(ctx context.Context) error {
 
 	addColumns := []string{
 		`ALTER TABLE catalog_apps ADD COLUMN openhost_integration_score INTEGER NOT NULL DEFAULT 0`,
-		`ALTER TABLE catalog_apps ADD COLUMN ai_generated INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE catalog_apps ADD COLUMN ai_generated_packaging INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE catalog_apps ADD COLUMN ai_generated_application INTEGER NOT NULL DEFAULT 0`,
 	}
 	for _, stmt := range addColumns {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
@@ -298,8 +306,8 @@ func (s *Store) ReplaceCatalogAppsForSource(ctx context.Context, sourceID string
 	insertStmt := `INSERT INTO catalog_apps
 	(source_id, app_id, title, description, repo_url, repo_ref, icon_url,
 	 tags_json, categories_json, website_url, docs_url,
-	 openhost_integration_score, ai_generated, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	 openhost_integration_score, ai_generated_packaging, ai_generated_application, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	now := nowString()
 	for _, app := range apps {
@@ -312,12 +320,16 @@ func (s *Store) ReplaceCatalogAppsForSource(ctx context.Context, sourceID string
 			return fmt.Errorf("marshal categories for %s/%s: %w", app.SourceID, app.AppID, err)
 		}
 
-		// SQLite stores booleans as 0/1 integers; the column was
+		// SQLite stores booleans as 0/1 integers; the columns were
 		// declared INTEGER for that reason. Encode here rather than
 		// relying on the driver to convert.
-		aiGeneratedInt := 0
-		if app.AiGenerated {
-			aiGeneratedInt = 1
+		aiPackagingInt := 0
+		if app.AiGeneratedPackaging {
+			aiPackagingInt = 1
+		}
+		aiApplicationInt := 0
+		if app.AiGeneratedApplication {
+			aiApplicationInt = 1
 		}
 
 		if _, err := tx.ExecContext(
@@ -335,7 +347,8 @@ func (s *Store) ReplaceCatalogAppsForSource(ctx context.Context, sourceID string
 			app.WebsiteURL,
 			app.DocsURL,
 			app.OpenhostIntegrationScore,
-			aiGeneratedInt,
+			aiPackagingInt,
+			aiApplicationInt,
 			now,
 		); err != nil {
 			return fmt.Errorf("insert catalog app %s/%s: %w", sourceID, app.AppID, err)
@@ -399,7 +412,8 @@ func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]Ca
 		ca.website_url,
 		ca.docs_url,
 		ca.openhost_integration_score,
-		ca.ai_generated,
+		ca.ai_generated_packaging,
+		ca.ai_generated_application,
 		ca.updated_at
 	FROM catalog_apps ca
 	JOIN sources s ON s.id = ca.source_id
@@ -440,7 +454,7 @@ func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]Ca
 	for rows.Next() {
 		var app CatalogApp
 		var tagsJSON, categoriesJSON string
-		var aiGeneratedInt int
+		var aiPackagingInt, aiApplicationInt int
 		if err := rows.Scan(
 			&app.SourceID,
 			&app.SourceName,
@@ -455,14 +469,16 @@ func (s *Store) ListCatalogApps(ctx context.Context, filter AppListFilter) ([]Ca
 			&app.WebsiteURL,
 			&app.DocsURL,
 			&app.OpenhostIntegrationScore,
-			&aiGeneratedInt,
+			&aiPackagingInt,
+			&aiApplicationInt,
 			&app.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan catalog app row: %w", err)
 		}
 		app.Tags = decodeJSONList(tagsJSON)
 		app.Categories = decodeJSONList(categoriesJSON)
-		app.AiGenerated = aiGeneratedInt != 0
+		app.AiGeneratedPackaging = aiPackagingInt != 0
+		app.AiGeneratedApplication = aiApplicationInt != 0
 		out = append(out, app)
 	}
 	if err := rows.Err(); err != nil {
@@ -489,7 +505,8 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 			ca.website_url,
 			ca.docs_url,
 			ca.openhost_integration_score,
-			ca.ai_generated,
+			ca.ai_generated_packaging,
+			ca.ai_generated_application,
 			ca.updated_at
 		 FROM catalog_apps ca
 		 JOIN sources s ON s.id = ca.source_id
@@ -500,7 +517,7 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 
 	var app CatalogApp
 	var tagsJSON, categoriesJSON string
-	var aiGeneratedInt int
+	var aiPackagingInt, aiApplicationInt int
 	if err := row.Scan(
 		&app.SourceID,
 		&app.SourceName,
@@ -515,7 +532,8 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 		&app.WebsiteURL,
 		&app.DocsURL,
 		&app.OpenhostIntegrationScore,
-		&aiGeneratedInt,
+		&aiPackagingInt,
+		&aiApplicationInt,
 		&app.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -525,7 +543,8 @@ func (s *Store) GetCatalogApp(ctx context.Context, sourceID, appID string) (Cata
 	}
 	app.Tags = decodeJSONList(tagsJSON)
 	app.Categories = decodeJSONList(categoriesJSON)
-	app.AiGenerated = aiGeneratedInt != 0
+	app.AiGeneratedPackaging = aiPackagingInt != 0
+	app.AiGeneratedApplication = aiApplicationInt != 0
 	return app, nil
 }
 

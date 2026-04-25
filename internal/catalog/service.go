@@ -41,11 +41,15 @@ type sourceFeedApp struct {
 	WebsiteURL               string   `json:"website_url"`
 	DocsURL                  string   `json:"docs_url"`
 	OpenhostIntegrationScore int      `json:"openhost_integration_score"`
-	// AiGenerated is a self-reported flag from the source feed
-	// indicating that the *packaging code* in RepoURL was produced
-	// primarily with AI assistance. It says nothing about the
-	// upstream application's own source code.
-	AiGenerated bool `json:"ai_generated"`
+	// AiGeneratedPackaging is self-reported by the source feed: the
+	// packaging code in RepoURL (Dockerfile, manifests, glue scripts)
+	// was produced primarily with AI assistance.
+	AiGeneratedPackaging bool `json:"ai_generated_packaging"`
+	// AiGeneratedApplication is self-reported by the source feed:
+	// the upstream application's own source code was produced
+	// primarily with AI assistance. Independent of
+	// AiGeneratedPackaging.
+	AiGeneratedApplication bool `json:"ai_generated_application"`
 }
 
 func NewService(st *store.Store, client *http.Client) *Service {
@@ -183,7 +187,8 @@ func normalizeFeedApp(sourceID string, in sourceFeedApp) (store.CatalogApp, bool
 		WebsiteURL:               strings.TrimSpace(in.WebsiteURL),
 		DocsURL:                  strings.TrimSpace(in.DocsURL),
 		OpenhostIntegrationScore: score,
-		AiGenerated:              in.AiGenerated,
+		AiGeneratedPackaging:     in.AiGeneratedPackaging,
+		AiGeneratedApplication:   in.AiGeneratedApplication,
 	}
 
 	return out, true
