@@ -22,6 +22,8 @@
     <tr><th>Source</th><td>{{.App.SourceName}}</td></tr>
     <tr><th>Repository</th><td style="font-family: monospace; word-break: break-word;">{{.App.RepoURL}}{{if .App.RepoRef}}@{{.App.RepoRef}}{{end}}</td></tr>
     <tr><th>OpenHost integration</th><td>{{if .App.OpenhostIntegrationScore}}<span class="stars">{{stars .App.OpenhostIntegrationScore}}</span> <span class="rating-num">{{.App.OpenhostIntegrationScore}}/5</span>{{else}}-{{end}}</td></tr>
+    <tr><th title="Self-reported by the source. Refers only to the packaging code (Dockerfile, manifests, glue scripts) in this repo, not the upstream application.">AI-generated packaging</th><td>{{if .App.AiGeneratedPackaging}}<span class="ai-badge ai-badge-packaging" title="The source self-reports that this app's packaging code was produced primarily with AI assistance.">AI-generated packaging</span>{{else}}No{{end}}</td></tr>
+    <tr><th title="Self-reported by the source. Refers only to the upstream application's own source code, not the packaging in this repo.">AI-generated application</th><td>{{if .App.AiGeneratedApplication}}<span class="ai-badge ai-badge-application" title="The source self-reports that the upstream application's source code was produced primarily with AI assistance.">AI-generated application</span>{{else}}No{{end}}</td></tr>
     <tr><th>Tags</th><td>{{if .App.Tags}}{{join .App.Tags ", "}}{{else}}-{{end}}</td></tr>
     <tr><th>Categories</th><td>{{if .App.Categories}}{{join .App.Categories ", "}}{{else}}-{{end}}</td></tr>
     <tr><th>Website</th><td>{{if .App.WebsiteURL}}<a href="{{.App.WebsiteURL}}" target="_blank" rel="noopener">{{.App.WebsiteURL}}</a>{{else}}-{{end}}</td></tr>

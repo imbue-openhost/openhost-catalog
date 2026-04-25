@@ -55,6 +55,8 @@
     <tr>
       <td>
         <a href="{{withBase $.BasePath (printf "/apps/%s/%s" .SourceID .AppID)}}"><strong>{{.Title}}</strong></a>
+        {{if .AiGeneratedPackaging}}<span class="ai-badge ai-badge-packaging" title="The source self-reports that this app's packaging code was produced primarily with AI assistance.">AI packaging</span>{{end}}
+        {{if .AiGeneratedApplication}}<span class="ai-badge ai-badge-application" title="The source self-reports that the upstream application's source code was produced primarily with AI assistance.">AI application</span>{{end}}
         <div style="color: #666;">{{.Description}}</div>
         <div style="color: #666; font-family: monospace; font-size: 0.85em;">{{.RepoURL}}{{if .RepoRef}}@{{.RepoRef}}{{end}}</div>
       </td>
